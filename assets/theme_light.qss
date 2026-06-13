@@ -1,0 +1,259 @@
+QWidget {
+    background-color: #edf4f7;
+    color: #17303a;
+    font-family: "Microsoft YaHei UI";
+    font-size: 14px;
+}
+
+QMainWindow {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 rgba(244, 249, 251, 255),
+        stop: 0.58 rgba(234, 243, 247, 255),
+        stop: 1 rgba(224, 237, 242, 255)
+    );
+}
+
+QLabel {
+    background: transparent;
+}
+
+QFrame#HeaderCard,
+QFrame#Card,
+QFrame#StatCard {
+    background-color: rgba(255, 255, 255, 232);
+    border: 1px solid rgba(87, 143, 158, 52);
+    border-radius: 22px;
+}
+
+QFrame#HeaderCard {
+    background-color: rgba(247, 251, 252, 242);
+}
+
+QTabWidget#MainTabs::pane {
+    border: none;
+    background: transparent;
+}
+
+QTabBar::tab {
+    background-color: rgba(232, 241, 245, 238);
+    border: 1px solid rgba(87, 143, 158, 38);
+    border-radius: 14px;
+    color: rgba(23, 48, 58, 190);
+    font-weight: 600;
+    min-width: 104px;
+    padding: 9px 16px;
+    margin-right: 8px;
+}
+
+QTabBar::tab:selected {
+    background-color: rgba(42, 147, 160, 232);
+    border: 1px solid rgba(39, 123, 135, 76);
+    color: #f9feff;
+}
+
+QTabBar::tab:hover {
+    background-color: rgba(220, 235, 240, 250);
+}
+
+QFrame#StatCard {
+    min-height: 112px;
+}
+
+QLabel#Title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #14313a;
+}
+
+QLabel#Subtitle {
+    color: rgba(42, 73, 84, 185);
+    font-size: 13px;
+}
+
+QLabel#CardTitle {
+    color: #25798b;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#StatValue {
+    font-size: 30px;
+    font-weight: 700;
+    color: #14313a;
+}
+
+QLabel#StatLabel {
+    color: rgba(58, 87, 97, 188);
+    font-size: 13px;
+}
+
+QLabel#Hint {
+    color: rgba(71, 96, 105, 182);
+    font-size: 12px;
+}
+
+QLabel#PreviewSurface {
+    background-color: rgba(241, 247, 249, 245);
+    border: 1px solid rgba(87, 143, 158, 42);
+    border-radius: 18px;
+    padding: 12px;
+    color: rgba(61, 86, 95, 170);
+}
+
+QLabel#PreviewMeta {
+    color: rgba(63, 91, 101, 188);
+    font-size: 12px;
+}
+
+QWidget#PreviewOverlayActions {
+    background: transparent;
+}
+
+QToolButton#PreviewOverlayButton {
+    background-color: rgba(42, 147, 160, 238);
+    border: 1px solid rgba(39, 123, 135, 72);
+    border-radius: 15px;
+    min-width: 30px;
+    min-height: 30px;
+}
+
+QToolButton#PreviewOverlayButton:hover {
+    background-color: rgba(34, 161, 176, 248);
+}
+
+QToolButton#PreviewOverlayButton:pressed {
+    background-color: rgba(25, 125, 139, 255);
+}
+
+QToolButton#PreviewOverlayButton:disabled {
+    background-color: rgba(194, 211, 216, 180);
+    border: 1px solid rgba(87, 143, 158, 28);
+}
+
+QDialog#FullscreenPreviewDialog {
+    background-color: #eef6f8;
+}
+
+QLabel#FullscreenTitle {
+    color: #14313a;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#FullscreenPreviewSurface {
+    background-color: rgba(248, 251, 252, 252);
+    border: 1px solid rgba(87, 143, 158, 42);
+    border-radius: 18px;
+    padding: 12px;
+    color: rgba(61, 86, 95, 170);
+}
+
+QListWidget,
+QTableWidget,
+QPlainTextEdit,
+QLineEdit {
+    background-color: rgba(248, 251, 252, 248);
+    border: 1px solid rgba(87, 143, 158, 42);
+    border-radius: 16px;
+    padding: 10px 12px;
+    selection-background-color: rgba(45, 147, 160, 70);
+    selection-color: #14313a;
+}
+
+QListWidget::item,
+QTableWidget::item {
+    padding: 6px;
+}
+
+QHeaderView::section {
+    background-color: rgba(227, 239, 243, 246);
+    color: #17303a;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid rgba(87, 143, 158, 35);
+}
+
+QPushButton {
+    background-color: rgba(232, 241, 245, 245);
+    border: 1px solid rgba(87, 143, 158, 50);
+    border-radius: 16px;
+    padding: 10px 16px;
+    color: #17303a;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: rgba(218, 235, 240, 252);
+}
+
+QPushButton:pressed {
+    background-color: rgba(205, 227, 233, 255);
+}
+
+QPushButton:disabled {
+    background-color: rgba(231, 236, 238, 210);
+    color: rgba(108, 124, 130, 130);
+}
+
+QPushButton#PrimaryButton {
+    background-color: rgba(42, 147, 160, 240);
+    border: 1px solid rgba(39, 123, 135, 82);
+    color: #f9feff;
+}
+
+QPushButton#PrimaryButton:hover {
+    background-color: rgba(34, 161, 176, 248);
+}
+
+QToolButton#ThemeToggleButton {
+    background-color: rgba(234, 243, 247, 246);
+    border: 1px solid rgba(87, 143, 158, 46);
+    border-radius: 21px;
+}
+
+QToolButton#ThemeToggleButton:hover {
+    background-color: rgba(220, 235, 240, 250);
+}
+
+QToolButton#ThemeToggleButton:pressed {
+    background-color: rgba(208, 228, 234, 255);
+}
+
+QProgressBar {
+    background-color: rgba(235, 243, 246, 242);
+    border: 1px solid rgba(87, 143, 158, 30);
+    border-radius: 12px;
+    min-height: 20px;
+    text-align: center;
+    color: #17303a;
+}
+
+QProgressBar::chunk {
+    border-radius: 10px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(57, 175, 191, 225),
+        stop: 1 rgba(102, 205, 219, 245)
+    );
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 12px;
+    margin: 4px 0 4px 0;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(110, 164, 177, 120);
+    border-radius: 6px;
+    min-height: 24px;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+    border: none;
+}

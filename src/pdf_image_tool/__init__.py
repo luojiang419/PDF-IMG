@@ -1,0 +1,3 @@
+from .core.app_info import APP_ICON_PARTS, APP_NAME, APP_VERSION, BUILD_NAME
+
+__all__ = ["APP_NAME", "APP_VERSION", "BUILD_NAME", "APP_ICON_PARTS"]
