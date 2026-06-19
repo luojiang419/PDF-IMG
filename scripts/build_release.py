@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import os
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +77,71 @@ def build_windows_icon(source_png: Path, target_ico: Path) -> Path | None:
             app.quit()
 
 
+def build_macos_icon(source_png: Path, target_icns: Path) -> Path | None:
+    if not source_png.exists():
+        return None
+
+    iconset_dir = target_icns.with_suffix(".iconset")
+    if iconset_dir.exists():
+        shutil.rmtree(iconset_dir)
+    iconset_dir.mkdir(parents=True, exist_ok=True)
+    target_icns.parent.mkdir(parents=True, exist_ok=True)
+
+    for size in (16, 32, 128, 256, 512):
+        subprocess.run(
+            [
+                "sips",
+                "-z",
+                str(size),
+                str(size),
+                str(source_png),
+                "--out",
+                str(iconset_dir / f"icon_{size}x{size}.png"),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        retina_size = size * 2
+        subprocess.run(
+            [
+                "sips",
+                "-z",
+                str(retina_size),
+                str(retina_size),
+                str(source_png),
+                "--out",
+                str(iconset_dir / f"icon_{size}x{size}@2x.png"),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+
+    subprocess.run(
+        ["iconutil", "-c", "icns", str(iconset_dir), "-o", str(target_icns)],
+        check=True,
+    )
+    shutil.rmtree(iconset_dir)
+    return target_icns
+
+
+def build_platform_icon(source_png: Path, generated_root: Path) -> Path | None:
+    if sys.platform == "win32":
+        return build_windows_icon(source_png, generated_root / "app_icon.ico")
+    if sys.platform == "darwin":
+        return build_macos_icon(source_png, generated_root / "app_icon.icns")
+    return None
+
+
+def add_data_arg(source: Path, target: str) -> str:
+    return f"{source}{os.pathsep}{target}"
+
+
+def built_output_name() -> str:
+    if sys.platform == "darwin":
+        return f"{BUILD_NAME}.app"
+    return BUILD_NAME
+
+
 def main() -> int:
     dist_root = ROOT / "dist"
     dist_root.mkdir(parents=True, exist_ok=True)
@@ -104,8 +170,7 @@ def main() -> int:
     generated_root.mkdir(parents=True, exist_ok=True)
 
     icon_source = ROOT.joinpath(*APP_ICON_PARTS)
-    icon_target = generated_root / "app_icon.ico"
-    generated_icon = build_windows_icon(icon_source, icon_target)
+    generated_icon = build_platform_icon(icon_source, generated_root)
 
     command = [
         sys.executable,
@@ -120,9 +185,9 @@ def main() -> int:
         "--paths",
         str(ROOT / "src"),
         "--add-data",
-        f"{ROOT / 'assets'};assets",
+        add_data_arg(ROOT / "assets", "assets"),
         "--add-data",
-        f"{ROOT / 'logo'};logo",
+        add_data_arg(ROOT / "logo", "logo"),
         "--distpath",
         str(pyinstaller_dist),
         "--workpath",
@@ -138,9 +203,9 @@ def main() -> int:
 
     subprocess.run(command, check=True)
 
-    built_app_dir = pyinstaller_dist / BUILD_NAME
+    built_app_dir = pyinstaller_dist / built_output_name()
     release_root.mkdir(parents=True, exist_ok=False)
-    shutil.copytree(built_app_dir, release_root / BUILD_NAME)
+    shutil.copytree(built_app_dir, release_root / built_app_dir.name)
 
     print(release_root)
     return 0
