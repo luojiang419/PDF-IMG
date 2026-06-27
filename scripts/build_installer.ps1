@@ -8,6 +8,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $DistRoot = Join-Path $Root "dist"
 $BuildName = "PDF-IMG-Extractor"
 $AppName = "PDF IMG Extractor"
+$InstallDirName = "PDF-IMG Extractor"
 
 function Find-Iscc {
     $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
@@ -78,6 +79,7 @@ $env:PDF_IMG_SOURCE_DIR = $AppDir
 $env:PDF_IMG_OUTPUT_DIR = $ResolvedReleaseDir
 $env:PDF_IMG_OUTPUT_BASE = $InstallerBaseName
 $env:PDF_IMG_ICON_FILE = $IconFile
+$env:PDF_IMG_INSTALL_DIR_NAME = $InstallDirName
 
 $Iscc = Find-Iscc
 & $Iscc $IssPath

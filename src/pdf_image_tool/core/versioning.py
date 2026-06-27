@@ -26,6 +26,29 @@ def format_version(version: tuple[int, int, int]) -> str:
     return f"v{version[0]}.{version[1]}.{version[2]}"
 
 
+def normalize_version(version_text: str) -> str:
+    return ".".join(str(part) for part in parse_version(version_text))
+
+
+def compare_versions(left: str, right: str) -> int:
+    left_parts = parse_version(left)
+    right_parts = parse_version(right)
+    if left_parts < right_parts:
+        return -1
+    if left_parts > right_parts:
+        return 1
+    return 0
+
+
+def is_newer_version(candidate: str, current: str) -> bool:
+    return compare_versions(candidate, current) > 0
+
+
+def bump_patch_version(version_text: str) -> str:
+    major, minor, patch = parse_version(version_text)
+    return normalize_version(f"v{major}.{minor}.{patch + 1}")
+
+
 def next_release_version(existing_names: list[str], minimum_version: str) -> str:
     minimum = parse_version(minimum_version)
     existing_versions = []

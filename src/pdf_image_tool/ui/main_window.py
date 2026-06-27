@@ -412,6 +412,7 @@ class FullscreenPreviewDialog(QDialog):
 
 class MainWindow(QMainWindow):
     theme_change_requested = Signal(str)
+    manual_update_check_requested = Signal()
 
     def __init__(self, window_title: str, initial_theme_name: str = "dark") -> None:
         super().__init__()
@@ -425,6 +426,8 @@ class MainWindow(QMainWindow):
         self.last_output_dir: Path | None = None
         self.active_output_root: Path | None = None
         self.active_run_mode = "advanced"
+        self.is_update_busy = False
+        self.update_status_message = "启动后会自动检查 GitHub 最新发布版本。"
         self.worker_thread: QThread | None = None
         self.worker: ExtractionWorker | None = None
         self.is_running = False
@@ -751,6 +754,20 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 12, 0, 0)
         layout.setSpacing(12)
 
+        update_layout = QVBoxLayout()
+        update_layout.setSpacing(10)
+        self.update_status_label = QLabel(self.update_status_message)
+        self.update_status_label.setObjectName("Hint")
+        self.update_status_label.setWordWrap(True)
+        update_layout.addWidget(self.update_status_label)
+
+        update_button_layout = QHBoxLayout()
+        self.check_update_button = QPushButton("检查更新")
+        self.check_update_button.clicked.connect(self.manual_update_check_requested.emit)
+        update_button_layout.addWidget(self.check_update_button)
+        update_button_layout.addStretch(1)
+        update_layout.addLayout(update_button_layout)
+
         output_layout = QVBoxLayout()
         output_layout.setSpacing(10)
         self.settings_output_hint_label = QLabel("进阶操作默认输出到这里；快速提取每次都会询问保存位置。")
@@ -773,6 +790,7 @@ class MainWindow(QMainWindow):
         output_button_layout.addStretch(1)
         output_layout.addLayout(output_button_layout)
 
+        layout.addWidget(self._create_card("软件更新", update_layout), 0)
         layout.addWidget(self._create_card("输出目录", output_layout), 0)
         layout.addStretch(1)
         return page
@@ -795,6 +813,7 @@ class MainWindow(QMainWindow):
         self.remove_batch_button.setEnabled(has_selected_queue_items and not self.is_running)
         self.remove_files_button.setEnabled(has_selected_queue_items and not self.is_running)
         self.choose_output_button.setEnabled(not self.is_running)
+        self.check_update_button.setEnabled(not self.is_running and not self.is_update_busy)
         self.start_button.setEnabled(can_start_advanced)
         self.open_output_button.setEnabled(has_output and not self.is_running)
         self.open_result_button.setEnabled(has_selected_result_output and not self.is_running)
@@ -831,6 +850,14 @@ class MainWindow(QMainWindow):
     def toggle_theme(self) -> None:
         next_theme_name = "light" if self.current_theme_name == "dark" else "dark"
         self.theme_change_requested.emit(next_theme_name)
+
+    def set_update_busy(self, busy: bool) -> None:
+        self.is_update_busy = busy
+        self.refresh_controls()
+
+    def set_update_status(self, message: str) -> None:
+        self.update_status_message = message
+        self.update_status_label.setText(message)
 
     def copy_current_preview_image(self) -> None:
         if self.preview_source_pixmap is None or self.preview_image_path is None:

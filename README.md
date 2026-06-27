@@ -9,6 +9,8 @@
 - 导出预览：支持图片悬浮复制、点击全屏、左右键切换、按钮切换和 Esc 退出。
 - 主题切换：右上角一键动态切换深色/浅色主题。
 - 固定布局：整体框架不随滚轮滚动，适配不同分辨率。
+- 自动更新：启动后自动检查 GitHub Release，支持全量安装包更新和上一版本到当前版本的增量补丁更新。
+- 代理下载：更新检查、补丁下载和回退全量安装器下载都支持走系统代理，适配国内常见代理环境。
 
 ## 本地开发
 
@@ -41,3 +43,31 @@ powershell -ExecutionPolicy Bypass -File scripts\build_installer.ps1
 ```
 
 安装包会输出到最新的 `dist\v*` 目录中。
+
+生成上一版本到当前版本的增量补丁包：
+
+```powershell
+python scripts\build_delta_update.py --from-release dist\v0.1.18 --to-release dist\v0.1.19
+```
+
+自动递增 patch 版本、构建产物并上传 GitHub Release：
+
+```powershell
+python scripts\publish_github_release.py
+```
+
+## 自动更新说明
+
+- 最新版本通过公开 GitHub Release 提供，客户端不依赖自建服务器。
+- 每个正式版本会上传 3 类资产：
+  - `PDF-IMG-Extractor-vX.Y.Z-Setup.exe`
+  - `PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-patch.zip`
+  - `PDF-IMG-Extractor-vX.Y.Z-manifest.json`
+- 客户端会优先读取系统代理配置；如果系统已开启代理，更新状态文案和日志会显示“系统代理”以及当前使用的代理地址。
+- 客户端更新决策顺序固定为：
+  1. 读取最新 Release 的 `manifest.json`
+  2. 如果存在 `from_version == 当前版本` 的补丁包，则优先下载增量补丁
+  3. 否则回退下载全量安装包
+- 下载缓存目录默认位于 `%LOCALAPPDATA%\PDF-IMG-Extractor\updates`
+- “下次启动更新”会把待执行更新状态写入 `%LOCALAPPDATA%\PDF-IMG-Extractor\update_state.json`
+- 首个带自动更新能力的版本需要手动安装一次；之后才可通过应用内自动更新

@@ -5,13 +5,14 @@
 #define MyOutputDir GetEnv("PDF_IMG_OUTPUT_DIR")
 #define MyOutputBase GetEnv("PDF_IMG_OUTPUT_BASE")
 #define MyIconFile GetEnv("PDF_IMG_ICON_FILE")
+#define MyInstallDirName GetEnv("PDF_IMG_INSTALL_DIR_NAME")
 
 [Setup]
 AppId={{7F722F22-F751-4559-A8F8-CC98313D957B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=PDF-IMG
-DefaultDirName={autopf}\PDF-IMG Extractor
+DefaultDirName={localappdata}\Programs\{#MyInstallDirName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#MyOutputDir}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -12,8 +13,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pdf_image_tool.core.app_info import APP_ICON_PARTS, APP_VERSION, BUILD_NAME
-from pdf_image_tool.core.versioning import next_release_version
+from pdf_image_tool.core.app_info import APP_ICON_PARTS, APP_VERSION, BUILD_NAME, release_tag_name
 
 
 EXCLUDED_MODULES = [
@@ -143,10 +143,12 @@ def built_output_name() -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="构建指定源码版本的发布目录。")
+    parser.parse_args()
+
     dist_root = ROOT / "dist"
     dist_root.mkdir(parents=True, exist_ok=True)
-    release_version = next_release_version([item.name for item in dist_root.iterdir()], APP_VERSION)
-    release_root = dist_root / release_version
+    release_root = dist_root / release_tag_name(APP_VERSION)
 
     pyinstaller_dist = ROOT / "build" / "pyinstaller-dist"
     pyinstaller_work = ROOT / "build" / "pyinstaller-work"
@@ -188,6 +190,8 @@ def main() -> int:
         add_data_arg(ROOT / "assets", "assets"),
         "--add-data",
         add_data_arg(ROOT / "logo", "logo"),
+        "--add-data",
+        add_data_arg(ROOT / "scripts" / "apply_update.ps1", "scripts"),
         "--distpath",
         str(pyinstaller_dist),
         "--workpath",
