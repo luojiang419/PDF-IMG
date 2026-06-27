@@ -414,12 +414,13 @@ class MainWindow(QMainWindow):
     theme_change_requested = Signal(str)
     manual_update_check_requested = Signal()
 
-    def __init__(self, window_title: str, initial_theme_name: str = "dark") -> None:
+    def __init__(self, window_title: str, current_version: str = "", initial_theme_name: str = "dark") -> None:
         super().__init__()
         self.setWindowTitle(window_title)
         self.resize(1280, 800)
         self.setMinimumSize(960, 640)
         self.current_theme_name = initial_theme_name if initial_theme_name == "light" else "dark"
+        self.current_version = current_version.strip()
 
         self.pdf_paths: list[Path] = []
         self.output_dir: Path | None = None
@@ -765,6 +766,10 @@ class MainWindow(QMainWindow):
         self.check_update_button = QPushButton("检查更新")
         self.check_update_button.clicked.connect(self.manual_update_check_requested.emit)
         update_button_layout.addWidget(self.check_update_button)
+        version_text = f"当前版本：v{self.current_version}" if self.current_version else "当前版本：未知"
+        self.current_version_label = QLabel(version_text)
+        self.current_version_label.setObjectName("Hint")
+        update_button_layout.addWidget(self.current_version_label)
         update_button_layout.addStretch(1)
         update_layout.addLayout(update_button_layout)
 
