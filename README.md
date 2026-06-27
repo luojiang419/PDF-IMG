@@ -9,7 +9,7 @@
 - 导出预览：支持图片悬浮复制、点击全屏、左右键切换、按钮切换和 Esc 退出。
 - 主题切换：右上角一键动态切换深色/浅色主题。
 - 固定布局：整体框架不随滚轮滚动，适配不同分辨率。
-- 自动更新：启动后自动检查 GitHub Release，支持全量安装包更新和上一版本到当前版本的增量补丁更新。
+- 自动更新：启动后自动检查 GitHub Release，按当前平台筛选兼容资产，支持全量安装包更新和上一版本到当前版本的增量补丁更新。
 - 代理下载：更新检查、补丁下载和回退全量安装器下载都支持走系统代理，适配国内常见代理环境。
 
 ## 本地开发
@@ -59,13 +59,16 @@ python scripts\publish_github_release.py
 ## 自动更新说明
 
 - 最新版本通过公开 GitHub Release 提供，客户端不依赖自建服务器。
-- 每个正式版本会上传 3 类资产：
-  - `PDF-IMG-Extractor-vX.Y.Z-Setup.exe`
-  - `PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-patch.zip`
-  - `PDF-IMG-Extractor-vX.Y.Z-manifest.json`
+- 每个平台的正式版本都会上传自己的更新资产，Windows 与 macOS 互不干扰：
+  - Windows 全量包：`PDF-IMG-Extractor-vX.Y.Z-Setup.exe`
+  - Windows 增量包：`PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-windows-patch.zip`
+  - Windows 清单：`PDF-IMG-Extractor-vX.Y.Z-windows-manifest.json`
+  - macOS 全量包：`PDF-IMG-Extractor-vX.Y.Z-mac-ARCH.dmg`
+  - macOS 增量包：`PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-macos-patch.zip`
+  - macOS 清单：`PDF-IMG-Extractor-vX.Y.Z-macos-manifest.json`
 - 客户端会优先读取系统代理配置；如果系统已开启代理，更新状态文案和日志会显示“系统代理”以及当前使用的代理地址。
 - 客户端更新决策顺序固定为：
-  1. 读取最新 Release 的 `manifest.json`
+  1. 从 GitHub Release 列表中查找当前平台最新的兼容 `manifest.json`
   2. 如果存在 `from_version == 当前版本` 的补丁包，则优先下载增量补丁
   3. 否则回退下载全量安装包
 - 下载缓存目录默认位于 `%LOCALAPPDATA%\PDF-IMG-Extractor\updates`

@@ -15,7 +15,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pdf_image_tool.core.app_info import manifest_asset_name
+from pdf_image_tool.core.app_info import legacy_manifest_asset_name, manifest_asset_name
 from pdf_image_tool.core.update_state import TEST_OVERRIDE_ENV
 from pdf_image_tool.services.update_service import UpdateService, detect_system_proxies, describe_proxy_mode
 
@@ -84,7 +84,7 @@ class UpdateServiceTests(unittest.TestCase):
                 "tag_name": "v0.1.20",
                 "assets": [
                     {
-                        "name": manifest_asset_name("0.1.20"),
+                        "name": manifest_asset_name("0.1.20", "windows"),
                         "browser_download_url": "https://example.com/manifest.json",
                     }
                 ],
@@ -92,8 +92,8 @@ class UpdateServiceTests(unittest.TestCase):
 
             def fake_urlopen(request, timeout=0):
                 url = request.full_url
-                if url.endswith("/releases/latest"):
-                    return FakeResponse(json.dumps(release_json).encode("utf-8"))
+                if "/releases?per_page=" in url:
+                    return FakeResponse(json.dumps([release_json]).encode("utf-8"))
                 if url.endswith("/manifest.json"):
                     return FakeResponse(json.dumps(manifest).encode("utf-8"))
                 if url.endswith("/patch.zip"):
@@ -106,6 +106,7 @@ class UpdateServiceTests(unittest.TestCase):
                 repository="demo/repo",
                 urlopen=fake_urlopen,
                 proxies={"https": "127.0.0.1:7890"},
+                platform_name="windows",
             )
             self.assertEqual(service.proxy_mode, "系统代理（https=http://127.0.0.1:7890）")
             first = service.prepare_update(current_version="0.1.19")
@@ -130,6 +131,143 @@ class UpdateServiceTests(unittest.TestCase):
             os.environ.pop(TEST_OVERRIDE_ENV, None)
         else:
             os.environ[TEST_OVERRIDE_ENV] = previous_override
+
+    def test_prepare_update_skips_newer_other_platform_release(self) -> None:
+        full_bytes = b"full-installer"
+        full_sha = hashlib.sha256(full_bytes).hexdigest()
+
+        windows_manifest = {
+            "version": "0.1.20",
+            "tag_name": "v0.1.20",
+            "repository": "demo/repo",
+            "platform": "windows",
+            "full": {
+                "name": "setup.exe",
+                "url": "https://example.com/setup.exe",
+                "size": len(full_bytes),
+                "sha256": full_sha,
+            },
+            "patches": [],
+        }
+        mac_manifest = {
+            "version": "0.1.21",
+            "tag_name": "v0.1.21",
+            "repository": "demo/repo",
+            "platform": "macos",
+            "full": {
+                "name": "app.dmg",
+                "url": "https://example.com/app.dmg",
+                "size": 10,
+                "sha256": "0" * 64,
+            },
+            "patches": [],
+        }
+        release_list = [
+            {
+                "tag_name": "v0.1.21",
+                "assets": [
+                    {
+                        "name": manifest_asset_name("0.1.21", "macos"),
+                        "browser_download_url": "https://example.com/macos-manifest.json",
+                    }
+                ],
+            },
+            {
+                "tag_name": "v0.1.20",
+                "assets": [
+                    {
+                        "name": manifest_asset_name("0.1.20", "windows"),
+                        "browser_download_url": "https://example.com/windows-manifest.json",
+                    }
+                ],
+            },
+        ]
+
+        def fake_urlopen(request, timeout=0):
+            url = request.full_url
+            if "/releases?per_page=" in url:
+                return FakeResponse(json.dumps(release_list).encode("utf-8"))
+            if url.endswith("/macos-manifest.json"):
+                return FakeResponse(json.dumps(mac_manifest).encode("utf-8"))
+            if url.endswith("/windows-manifest.json"):
+                return FakeResponse(json.dumps(windows_manifest).encode("utf-8"))
+            if url.endswith("/setup.exe"):
+                return FakeResponse(full_bytes, headers={"Content-Length": str(len(full_bytes))})
+            raise AssertionError(f"unexpected url: {url}")
+
+        service = UpdateService(repository="demo/repo", urlopen=fake_urlopen, platform_name="windows")
+        result = service.prepare_update(current_version="0.1.19")
+        self.assertEqual(result.status, "update_ready")
+        self.assertEqual(result.target_version, "0.1.20")
+        self.assertEqual(result.asset_kind, "full")
+
+    def test_prepare_update_supports_legacy_windows_manifest_name(self) -> None:
+        full_bytes = b"legacy-full-installer"
+        full_sha = hashlib.sha256(full_bytes).hexdigest()
+        manifest = {
+            "version": "0.1.20",
+            "tag_name": "v0.1.20",
+            "repository": "demo/repo",
+            "full": {
+                "name": "setup.exe",
+                "url": "https://example.com/setup.exe",
+                "size": len(full_bytes),
+                "sha256": full_sha,
+            },
+            "patches": [],
+        }
+        release_list = [
+            {
+                "tag_name": "v0.1.20",
+                "assets": [
+                    {
+                        "name": legacy_manifest_asset_name("0.1.20"),
+                        "browser_download_url": "https://example.com/legacy-manifest.json",
+                    }
+                ],
+            }
+        ]
+
+        def fake_urlopen(request, timeout=0):
+            url = request.full_url
+            if "/releases?per_page=" in url:
+                return FakeResponse(json.dumps(release_list).encode("utf-8"))
+            if url.endswith("/legacy-manifest.json"):
+                return FakeResponse(json.dumps(manifest).encode("utf-8"))
+            if url.endswith("/setup.exe"):
+                return FakeResponse(full_bytes, headers={"Content-Length": str(len(full_bytes))})
+            raise AssertionError(f"unexpected url: {url}")
+
+        service = UpdateService(repository="demo/repo", urlopen=fake_urlopen, platform_name="windows")
+        result = service.prepare_update(current_version="0.1.19")
+        self.assertEqual(result.status, "update_ready")
+        self.assertEqual(result.target_version, "0.1.20")
+        self.assertEqual(result.asset_kind, "full")
+
+    def test_prepare_update_reports_no_compatible_release_for_platform(self) -> None:
+        release_list = [
+            {
+                "tag_name": "v0.1.20",
+                "assets": [
+                    {
+                        "name": manifest_asset_name("0.1.20", "windows"),
+                        "browser_download_url": "https://example.com/windows-manifest.json",
+                    }
+                ],
+            }
+        ]
+
+        def fake_urlopen(request, timeout=0):
+            url = request.full_url
+            if "/releases?per_page=" in url:
+                return FakeResponse(json.dumps(release_list).encode("utf-8"))
+            raise AssertionError(f"unexpected url: {url}")
+
+        service = UpdateService(repository="demo/repo", urlopen=fake_urlopen, platform_name="macos")
+        result = service.prepare_update(current_version="0.1.19")
+        self.assertEqual(result.status, "up_to_date")
+        self.assertIsNone(result.target_version)
+        self.assertIn("macOS", result.message)
 
 
 if __name__ == "__main__":
