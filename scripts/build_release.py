@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 import os
 
+from PyInstaller.building import makespec
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
@@ -132,14 +134,99 @@ def build_platform_icon(source_png: Path, generated_root: Path) -> Path | None:
     return None
 
 
-def add_data_arg(source: Path, target: str) -> str:
-    return f"{source}{os.pathsep}{target}"
-
-
 def built_output_name() -> str:
     if sys.platform == "darwin":
         return f"{BUILD_NAME}.app"
     return BUILD_NAME
+
+
+def bundle_info_plist_fragment() -> str:
+    return (
+        "    info_plist={"
+        f"'CFBundleShortVersionString': {APP_VERSION!r}, "
+        f"'CFBundleVersion': {APP_VERSION!r}"
+        "},\n"
+    )
+
+
+def inject_macos_bundle_info_plist(spec_file: Path) -> None:
+    lines = spec_file.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_bundle_block = False
+    for index, line in enumerate(lines):
+        if line.startswith("app = BUNDLE("):
+            in_bundle_block = True
+            continue
+        if in_bundle_block and line.startswith("    icon="):
+            lines.insert(index + 1, bundle_info_plist_fragment())
+            spec_file.write_text("".join(lines), encoding="utf-8")
+            return
+        if in_bundle_block and line.strip() == ")":
+            break
+
+    raise RuntimeError(f"未能在 spec 中注入 macOS bundle 版本信息：{spec_file}")
+
+
+def build_release_spec(
+    *,
+    spec_root: Path,
+    generated_icon: Path | None,
+) -> Path:
+    spec_path = Path(
+        makespec.main(
+            [str(ROOT / "main.py")],
+            name=BUILD_NAME,
+            onefile=False,
+            console=False,
+            debug=[],
+            python_options=[],
+            strip=False,
+            noupx=False,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            contents_directory=None,
+            pathex=[str(ROOT / "src")],
+            version_file=None,
+            specpath=str(spec_root),
+            bootloader_ignore_signals=False,
+            disable_windowed_traceback=False,
+            datas=[
+                (str(ROOT / "assets"), "assets"),
+                (str(ROOT / "logo"), "logo"),
+                (str(ROOT / "scripts" / "apply_update.ps1"), "scripts"),
+            ],
+            binaries=[],
+            icon_file=[str(generated_icon)] if generated_icon is not None else None,
+            manifest=None,
+            resources=[],
+            bundle_identifier=None,
+            hiddenimports=[],
+            hookspath=[],
+            runtime_hooks=[],
+            excludes=EXCLUDED_MODULES,
+            uac_admin=False,
+            uac_uiaccess=False,
+            collect_submodules=[],
+            collect_binaries=[],
+            collect_data=[],
+            collect_all=[],
+            copy_metadata=[],
+            splash=None,
+            recursive_copy_metadata=[],
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+            argv_emulation=False,
+            hide_console=None,
+            optimize=None,
+            splash_center=None,
+            shorthand_manifest=None,
+        )
+    )
+
+    if sys.platform == "darwin":
+        inject_macos_bundle_info_plist(spec_path)
+
+    return spec_path
 
 
 def main() -> int:
@@ -174,37 +261,20 @@ def main() -> int:
     icon_source = ROOT.joinpath(*APP_ICON_PARTS)
     generated_icon = build_platform_icon(icon_source, generated_root)
 
+    spec_file = build_release_spec(spec_root=spec_root, generated_icon=generated_icon)
+
     command = [
         sys.executable,
         "-m",
         "PyInstaller",
+        str(spec_file),
         "--noconfirm",
         "--clean",
-        "--windowed",
-        "--onedir",
-        "--name",
-        BUILD_NAME,
-        "--paths",
-        str(ROOT / "src"),
-        "--add-data",
-        add_data_arg(ROOT / "assets", "assets"),
-        "--add-data",
-        add_data_arg(ROOT / "logo", "logo"),
-        "--add-data",
-        add_data_arg(ROOT / "scripts" / "apply_update.ps1", "scripts"),
         "--distpath",
         str(pyinstaller_dist),
         "--workpath",
         str(pyinstaller_work),
-        "--specpath",
-        str(spec_root),
-        str(ROOT / "main.py"),
     ]
-    if generated_icon is not None:
-        command.extend(["--icon", str(generated_icon)])
-    for module_name in EXCLUDED_MODULES:
-        command.extend(["--exclude-module", module_name])
-
     subprocess.run(command, check=True)
 
     built_app_dir = pyinstaller_dist / built_output_name()
