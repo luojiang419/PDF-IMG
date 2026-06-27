@@ -20,6 +20,7 @@ from pdf_image_tool.core.app_info import (
     APP_VERSION,
     BUILD_NAME,
     UPDATE_REPOSITORY,
+    current_update_platform,
     installer_asset_name,
     manifest_asset_name,
     patch_asset_name,
@@ -82,13 +83,14 @@ def write_release_manifest(
     installer_path: Path,
     patch_path: Path | None,
     previous_version: str | None,
+    platform_name: str,
 ) -> Path:
     tag_name = release_tag_name(version)
     manifest = {
         "version": version,
         "tag_name": tag_name,
         "repository": repository,
-        "platform": "windows",
+        "platform": platform_name,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "full": asset_metadata(installer_path, repository=repository, tag_name=tag_name),
         "patches": [],
@@ -102,7 +104,7 @@ def write_release_manifest(
             }
         )
 
-    manifest_path = release_dir / manifest_asset_name(version)
+    manifest_path = release_dir / manifest_asset_name(version, platform_name)
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest_path
 
@@ -141,6 +143,7 @@ def main() -> int:
     original_text = APP_INFO_PATH.read_text(encoding="utf-8")
     current_version = APP_VERSION
     next_version = bump_patch_version(current_version)
+    platform_name = current_update_platform()
     previous_release_dir = ROOT / "dist" / release_tag_name(current_version)
     installer_path = ROOT / "dist" / release_tag_name(next_version) / installer_asset_name(next_version)
     patch_path: Path | None = None
@@ -182,7 +185,7 @@ def main() -> int:
                 ]
             )
             patch_path = Path(patch_text).resolve()
-            expected_patch_name = patch_asset_name(current_version, next_version)
+            expected_patch_name = patch_asset_name(current_version, next_version, platform_name)
             if patch_path.name != expected_patch_name:
                 raise RuntimeError(f"补丁包命名不匹配：{patch_path.name}")
 
@@ -193,6 +196,7 @@ def main() -> int:
             installer_path=installer_path,
             patch_path=patch_path,
             previous_version=current_version if patch_path is not None else None,
+            platform_name=platform_name,
         )
 
         asset_paths = [installer_path]

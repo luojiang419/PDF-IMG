@@ -14,7 +14,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pdf_image_tool.core.app_info import BUILD_NAME, patch_asset_name
+from pdf_image_tool.core.app_info import BUILD_NAME, UPDATE_PLATFORM_MACOS, UPDATE_PLATFORM_WINDOWS, patch_asset_name
 from pdf_image_tool.core.versioning import normalize_version
 
 
@@ -44,18 +44,34 @@ def release_version_from_dir(release_dir: Path) -> str:
     return normalize_version(release_dir.name)
 
 
+def find_release_app_dir(release_dir: Path) -> Path:
+    candidates = [
+        release_dir / BUILD_NAME,
+        release_dir / f"{BUILD_NAME}.app",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"未找到应用目录：{release_dir}")
+
+
+def release_platform_from_app_dir(app_dir: Path) -> str:
+    if app_dir.name.endswith(".app"):
+        return UPDATE_PLATFORM_MACOS
+    return UPDATE_PLATFORM_WINDOWS
+
+
 def build_patch(
     *,
     from_release_dir: Path,
     to_release_dir: Path,
     output_path: Path | None = None,
 ) -> Path:
-    from_app_dir = from_release_dir / BUILD_NAME
-    to_app_dir = to_release_dir / BUILD_NAME
-    if not from_app_dir.exists():
-        raise FileNotFoundError(f"未找到旧版本目录：{from_app_dir}")
-    if not to_app_dir.exists():
-        raise FileNotFoundError(f"未找到新版本目录：{to_app_dir}")
+    from_app_dir = find_release_app_dir(from_release_dir)
+    to_app_dir = find_release_app_dir(to_release_dir)
+    platform_name = release_platform_from_app_dir(to_app_dir)
+    if release_platform_from_app_dir(from_app_dir) != platform_name:
+        raise RuntimeError("增量补丁只能在同一平台的两个发布目录之间生成。")
 
     from_version = release_version_from_dir(from_release_dir)
     to_version = release_version_from_dir(to_release_dir)
@@ -82,6 +98,8 @@ def build_patch(
 
     manifest = {
         "build_name": BUILD_NAME,
+        "platform": platform_name,
+        "app_root_name": to_app_dir.name,
         "from_version": from_version,
         "to_version": to_version,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -89,7 +107,7 @@ def build_patch(
         "removed_files": sorted(removed_files),
     }
 
-    target_path = output_path or (to_release_dir / patch_asset_name(from_version, to_version))
+    target_path = output_path or (to_release_dir / patch_asset_name(from_version, to_version, platform_name))
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists():
         target_path.unlink()

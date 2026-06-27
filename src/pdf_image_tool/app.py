@@ -161,9 +161,9 @@ class UpdateCoordinator(QObject):
 
         self.active_request_is_manual = manual
         self.window.set_update_busy(True)
-        self.window.set_update_status(f"正在检查 GitHub 最新发布版本（{self.service.proxy_mode}）。")
+        self.window.set_update_status(f"正在检查 GitHub {self.service.platform_label} 发布版本（{self.service.proxy_mode}）。")
         self.window.append_log(
-            f"{'开始手动检查软件更新' if manual else '软件启动后开始自动检查更新'}，当前网络方式：{self.service.proxy_mode}。"
+            f"{'开始手动检查软件更新' if manual else '软件启动后开始自动检查更新'}，目标平台：{self.service.platform_label}，当前网络方式：{self.service.proxy_mode}。"
         )
 
         self.update_thread = QThread(self)

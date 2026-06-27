@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,10 +15,12 @@ from pdf_image_tool.core.app_info import (
     APP_VERSION,
     BUILD_NAME,
     UPDATE_REPOSITORY,
-    manifest_asset_name,
+    current_update_platform,
+    manifest_asset_candidates,
+    update_platform_label,
 )
 from pdf_image_tool.core.update_state import updates_cache_dir
-from pdf_image_tool.core.versioning import is_newer_version, normalize_version
+from pdf_image_tool.core.versioning import is_newer_version, normalize_version, parse_version
 
 
 ProgressCallback = Callable[[str, int, int | None], None]
@@ -48,7 +49,7 @@ class ReleaseManifest:
     version: str
     tag_name: str
     repository: str
-    platform: str | None
+    platform: str
     full: ReleaseAsset
     patches: list[PatchAsset]
 
@@ -111,43 +112,6 @@ def describe_proxy_mode(proxy_map: dict[str, str]) -> str:
     return f"系统代理（{'，'.join(parts)}）"
 
 
-def normalize_platform_name(platform_name: str | None) -> str | None:
-    if platform_name is None:
-        return None
-    cleaned = platform_name.strip().lower()
-    if not cleaned:
-        return None
-    aliases = {
-        "darwin": "macos",
-        "mac": "macos",
-        "macos": "macos",
-        "osx": "macos",
-        "win": "windows",
-        "win32": "windows",
-        "windows": "windows",
-    }
-    return aliases.get(cleaned, cleaned)
-
-
-def runtime_platform_name() -> str:
-    if sys.platform.startswith("win"):
-        return "windows"
-    if sys.platform == "darwin":
-        return "macos"
-    return "linux"
-
-
-def platform_display_name(platform_name: str | None) -> str:
-    normalized = normalize_platform_name(platform_name)
-    if normalized == "windows":
-        return "Windows"
-    if normalized == "macos":
-        return "macOS"
-    if normalized == "linux":
-        return "Linux"
-    return normalized or "当前平台"
-
-
 def hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -162,9 +126,9 @@ def infer_release_platform(asset: ReleaseAsset) -> str | None:
     windows_suffixes = (".exe", ".msi", ".msix", ".msixbundle", ".appx", ".appxbundle")
     mac_suffixes = (".dmg", ".pkg", ".app.zip")
     if path_text.endswith(windows_suffixes) or name_text.endswith(windows_suffixes):
-        return "windows"
+        return current_update_platform("windows")
     if path_text.endswith(mac_suffixes) or name_text.endswith(mac_suffixes):
-        return "macos"
+        return current_update_platform("macos")
     return None
 
 
@@ -197,18 +161,21 @@ class UpdateService:
         urlopen: Callable[..., Any] | None = None,
         proxies: dict[str, str] | None = None,
         platform_name: str | None = None,
+        release_limit: int = 10,
     ) -> None:
         self.repository = repository
         self.timeout_seconds = timeout_seconds
+        self.platform_name = current_update_platform(platform_name)
+        self.platform_label = update_platform_label(self.platform_name)
+        self.release_limit = release_limit
         self.proxy_map = detect_system_proxies(proxies)
         self.proxy_mode = describe_proxy_mode(self.proxy_map)
-        self.platform_name = normalize_platform_name(platform_name) or runtime_platform_name()
         if urlopen is not None:
             self.urlopen = urlopen
         else:
             opener = urllib.request.build_opener(urllib.request.ProxyHandler(self.proxy_map))
             self.urlopen = opener.open
-        self.latest_release_url = f"https://api.github.com/repos/{repository}/releases/latest"
+        self.releases_url = f"https://api.github.com/repos/{repository}/releases?per_page={release_limit}"
 
     def build_request(self, url: str, *, accept: str) -> urllib.request.Request:
         return urllib.request.Request(
@@ -224,7 +191,7 @@ class UpdateService:
             return f"{action}：404（GitHub Release 资源不存在或尚未公开）"
         return f"{action}：{code}"
 
-    def read_json(self, url: str) -> dict[str, Any]:
+    def read_json(self, url: str) -> Any:
         request = self.build_request(url, accept="application/vnd.github+json")
         try:
             with self.urlopen(request, timeout=self.timeout_seconds) as response:
@@ -246,44 +213,72 @@ class UpdateService:
         except urllib.error.URLError as exc:
             raise UpdateError(f"下载更新失败：{exc.reason}") from exc
 
-    def fetch_latest_manifest(self) -> ReleaseManifest:
-        release_data = self.read_json(self.latest_release_url)
-        raw_tag_name = str(release_data.get("tag_name") or "")
-        tag_version = normalize_version(raw_tag_name)
-        expected_manifest_name = manifest_asset_name(tag_version)
-
-        manifest_url: str | None = None
+    def find_manifest_url(self, release_data: dict[str, Any], tag_version: str) -> str | None:
+        asset_names = manifest_asset_candidates(tag_version, self.platform_name)
         for asset in release_data.get("assets", []):
-            if str(asset.get("name")) == expected_manifest_name:
-                manifest_url = str(asset.get("browser_download_url") or "")
-                break
+            asset_name = str(asset.get("name"))
+            if asset_name in asset_names:
+                return str(asset.get("browser_download_url") or "")
+        return None
 
-        if not manifest_url:
-            raise UpdateError(f"最新发布缺少清单文件：{expected_manifest_name}")
-
+    def parse_manifest(self, manifest_data: dict[str, Any], *, fallback_platform: str) -> ReleaseManifest:
         try:
-            manifest_data = json.loads(self.read_bytes(manifest_url).decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise UpdateError("更新清单解析失败。") from exc
+            manifest_version = normalize_version(str(manifest_data["version"]))
+            full_asset = release_asset_from_manifest(dict(manifest_data["full"]))
+        except (KeyError, ValueError) as exc:
+            raise UpdateError("更新清单缺少有效版本或资源信息。") from exc
 
-        manifest_version = normalize_version(str(manifest_data["version"]))
-        full_asset = release_asset_from_manifest(dict(manifest_data["full"]))
-        manifest_platform = normalize_platform_name(manifest_data.get("platform"))
-        if manifest_platform is None:
-            manifest_platform = infer_release_platform(full_asset)
+        raw_platform = manifest_data.get("platform")
+        platform_name = current_update_platform(str(raw_platform)) if raw_platform else infer_release_platform(full_asset)
+        platform_name = platform_name or fallback_platform
         return ReleaseManifest(
             version=manifest_version,
             tag_name=str(manifest_data["tag_name"]),
             repository=str(manifest_data.get("repository") or self.repository),
-            platform=manifest_platform,
+            platform=platform_name,
             full=full_asset,
             patches=[patch_asset_from_manifest(dict(item)) for item in manifest_data.get("patches", [])],
         )
 
-    def is_manifest_compatible(self, manifest: ReleaseManifest) -> bool:
-        if manifest.platform is None:
-            return True
-        return normalize_platform_name(manifest.platform) == self.platform_name
+    def fetch_latest_manifest(self) -> ReleaseManifest | None:
+        release_data_list = self.read_json(self.releases_url)
+        if not isinstance(release_data_list, list):
+            raise UpdateError("检查更新失败：GitHub Release 列表格式不正确。")
+
+        manifests: list[ReleaseManifest] = []
+        for release_data in release_data_list:
+            if not isinstance(release_data, dict):
+                continue
+            if release_data.get("draft") or release_data.get("prerelease"):
+                continue
+
+            raw_tag_name = str(release_data.get("tag_name") or "")
+            if not raw_tag_name:
+                continue
+
+            try:
+                tag_version = normalize_version(raw_tag_name)
+            except ValueError:
+                continue
+
+            manifest_url = self.find_manifest_url(release_data, tag_version)
+            if not manifest_url:
+                continue
+
+            try:
+                manifest_data = json.loads(self.read_bytes(manifest_url).decode("utf-8"))
+            except json.JSONDecodeError as exc:
+                raise UpdateError("更新清单解析失败。") from exc
+
+            manifest = self.parse_manifest(manifest_data, fallback_platform=self.platform_name)
+            if manifest.platform != self.platform_name:
+                continue
+            manifests.append(manifest)
+
+        if not manifests:
+            return None
+
+        return max(manifests, key=lambda item: parse_version(item.version))
 
     def select_update(self, manifest: ReleaseManifest, current_version: str) -> SelectedUpdate | None:
         normalized_current = normalize_version(current_version)
@@ -349,20 +344,19 @@ class UpdateService:
         progress_callback: ProgressCallback | None = None,
     ) -> UpdatePreparation:
         manifest = self.fetch_latest_manifest()
-        if not self.is_manifest_compatible(manifest):
-            current_platform = platform_display_name(self.platform_name)
-            manifest_platform = platform_display_name(manifest.platform)
+        if manifest is None:
             return UpdatePreparation(
                 status="up_to_date",
                 current_version=normalize_version(current_version),
-                target_version=manifest.version,
+                target_version=None,
                 asset_kind=None,
                 asset=None,
                 fallback_asset=None,
                 local_path=None,
                 from_cache=False,
-                message=f"最新发布仅包含 {manifest_platform} 更新包，当前 {current_platform} 已跳过。",
+                message=f"当前没有适用于 {self.platform_label} 的发布版本。",
             )
+
         selection = self.select_update(manifest, current_version)
         if selection is None:
             return UpdatePreparation(
@@ -413,7 +407,9 @@ class UpdateCheckWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            self.status_message.emit(f"正在检查 GitHub 最新发布版本（{self.service.proxy_mode}）。")
+            self.status_message.emit(
+                f"正在检查 GitHub {self.service.platform_label} 发布版本（{self.service.proxy_mode}）。"
+            )
             result = self.service.prepare_update(
                 current_version=self.current_version,
                 progress_callback=self.emit_progress,
