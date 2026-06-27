@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
-import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,7 +34,6 @@ class ReleaseAsset:
     url: str
     size: int
     sha256: str
-    api_url: str | None
 
 
 @dataclass(slots=True)
@@ -113,64 +109,6 @@ def describe_proxy_mode(proxy_map: dict[str, str]) -> str:
     return f"系统代理（{'，'.join(parts)}）"
 
 
-def normalize_token(token: str | None) -> str | None:
-    if token is None:
-        return None
-    cleaned = token.strip()
-    return cleaned or None
-
-
-def normalize_optional_text(value: Any) -> str | None:
-    if value is None:
-        return None
-    return normalize_token(str(value))
-
-
-def find_gh_command() -> str | None:
-    candidates = [
-        os.environ.get("GH_PATH"),
-        shutil.which("gh"),
-        "/opt/homebrew/bin/gh",
-        "/usr/local/bin/gh",
-        "/usr/bin/gh",
-    ]
-    seen: set[str] = set()
-    for candidate in candidates:
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        candidate_path = Path(candidate)
-        if candidate_path.is_file() and os.access(candidate_path, os.X_OK):
-            return candidate
-    return None
-
-
-def resolve_github_token(explicit_token: str | None = None) -> str | None:
-    if explicit_token is not None:
-        return normalize_token(explicit_token)
-
-    for env_name in ("PDF_IMG_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"):
-        env_token = normalize_token(os.environ.get(env_name))
-        if env_token:
-            return env_token
-
-    gh_command = find_gh_command()
-    if gh_command is None:
-        return None
-
-    try:
-        completed = subprocess.run(
-            [gh_command, "auth", "token"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-        return None
-    return normalize_token(completed.stdout)
-
-
 def hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -185,7 +123,6 @@ def release_asset_from_manifest(data: dict[str, Any]) -> ReleaseAsset:
         url=str(data["url"]),
         size=int(data["size"]),
         sha256=str(data["sha256"]),
-        api_url=normalize_optional_text(data.get("api_url") or data.get("apiUrl")),
     )
 
 
@@ -195,17 +132,9 @@ def patch_asset_from_manifest(data: dict[str, Any]) -> PatchAsset:
         url=str(data["url"]),
         size=int(data["size"]),
         sha256=str(data["sha256"]),
-        api_url=normalize_optional_text(data.get("api_url") or data.get("apiUrl")),
         from_version=normalize_version(str(data["from_version"])),
         to_version=normalize_version(str(data["to_version"])),
     )
-
-
-def attach_release_api_url(asset: ReleaseAsset, api_urls_by_name: dict[str, str]) -> ReleaseAsset:
-    api_url = api_urls_by_name.get(asset.name)
-    if api_url:
-        asset.api_url = api_url
-    return asset
 
 
 class UpdateService:
@@ -216,13 +145,11 @@ class UpdateService:
         timeout_seconds: int = 20,
         urlopen: Callable[..., Any] | None = None,
         proxies: dict[str, str] | None = None,
-        github_token: str | None = None,
     ) -> None:
         self.repository = repository
         self.timeout_seconds = timeout_seconds
         self.proxy_map = detect_system_proxies(proxies)
         self.proxy_mode = describe_proxy_mode(self.proxy_map)
-        self.github_token = resolve_github_token(github_token)
         if urlopen is not None:
             self.urlopen = urlopen
         else:
@@ -231,19 +158,17 @@ class UpdateService:
         self.latest_release_url = f"https://api.github.com/repos/{repository}/releases/latest"
 
     def build_request(self, url: str, *, accept: str) -> urllib.request.Request:
-        headers = {
-            "User-Agent": f"{BUILD_NAME}/{APP_VERSION}",
-            "Accept": accept,
-        }
-        if self.github_token:
-            headers["Authorization"] = f"Bearer {self.github_token}"
-        return urllib.request.Request(url, headers=headers)
+        return urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": f"{BUILD_NAME}/{APP_VERSION}",
+                "Accept": accept,
+            },
+        )
 
     def format_http_error_message(self, action: str, code: int) -> str:
         if code == 404:
-            if self.github_token:
-                return f"{action}：404（GitHub Release 资源不存在或不可访问）"
-            return f"{action}：404（当前仓库是 private，未找到可用 GitHub 凭据；请登录 gh 或配置 GITHUB_TOKEN）"
+            return f"{action}：404（GitHub Release 资源不存在或尚未公开）"
         return f"{action}：{code}"
 
     def read_json(self, url: str) -> dict[str, Any]:
@@ -274,17 +199,10 @@ class UpdateService:
         tag_version = normalize_version(raw_tag_name)
         expected_manifest_name = manifest_asset_name(tag_version)
 
-        release_asset_urls: dict[str, str] = {}
-        for asset in release_data.get("assets", []):
-            asset_name = str(asset.get("name") or "")
-            asset_url = normalize_optional_text(asset.get("url") or asset.get("browser_download_url"))
-            if asset_name and asset_url:
-                release_asset_urls[asset_name] = asset_url
-
         manifest_url: str | None = None
         for asset in release_data.get("assets", []):
             if str(asset.get("name")) == expected_manifest_name:
-                manifest_url = normalize_optional_text(asset.get("url") or asset.get("browser_download_url"))
+                manifest_url = str(asset.get("browser_download_url") or "")
                 break
 
         if not manifest_url:
@@ -296,17 +214,12 @@ class UpdateService:
             raise UpdateError("更新清单解析失败。") from exc
 
         manifest_version = normalize_version(str(manifest_data["version"]))
-        full_asset = attach_release_api_url(release_asset_from_manifest(dict(manifest_data["full"])), release_asset_urls)
-        patch_assets = [
-            attach_release_api_url(patch_asset_from_manifest(dict(item)), release_asset_urls)
-            for item in manifest_data.get("patches", [])
-        ]
         return ReleaseManifest(
             version=manifest_version,
             tag_name=str(manifest_data["tag_name"]),
             repository=str(manifest_data.get("repository") or self.repository),
-            full=full_asset,
-            patches=patch_assets,
+            full=release_asset_from_manifest(dict(manifest_data["full"])),
+            patches=[patch_asset_from_manifest(dict(item)) for item in manifest_data.get("patches", [])],
         )
 
     def select_update(self, manifest: ReleaseManifest, current_version: str) -> SelectedUpdate | None:
@@ -339,8 +252,7 @@ class UpdateService:
         if temp_path.exists():
             temp_path.unlink()
 
-        download_url = asset.api_url or asset.url
-        request = self.build_request(download_url, accept="application/octet-stream")
+        request = self.build_request(asset.url, accept="application/octet-stream")
         try:
             with self.urlopen(request, timeout=self.timeout_seconds) as response, temp_path.open("wb") as handle:
                 total_text = response.headers.get("Content-Length")

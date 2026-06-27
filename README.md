@@ -58,8 +58,7 @@ python scripts\publish_github_release.py
 
 ## 自动更新说明
 
-- 最新版本通过公开 GitHub Release 提供，客户端不依赖自建服务器。
-- 如果仓库保持 private，客户端会自动尝试读取本机 `gh auth token` 或环境变量 `GITHUB_TOKEN` / `GH_TOKEN` 来访问 Release。
+- 最新版本通过公开 GitHub Release 提供，客户端直接匿名访问，无需登录 gh 或配置凭据。
 - 每个正式版本会上传 3 类资产：
   - `PDF-IMG-Extractor-vX.Y.Z-Setup.exe`
   - `PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-patch.zip`
