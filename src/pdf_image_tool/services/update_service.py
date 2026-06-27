@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -47,6 +48,7 @@ class ReleaseManifest:
     version: str
     tag_name: str
     repository: str
+    platform: str | None
     full: ReleaseAsset
     patches: list[PatchAsset]
 
@@ -109,12 +111,61 @@ def describe_proxy_mode(proxy_map: dict[str, str]) -> str:
     return f"系统代理（{'，'.join(parts)}）"
 
 
+def normalize_platform_name(platform_name: str | None) -> str | None:
+    if platform_name is None:
+        return None
+    cleaned = platform_name.strip().lower()
+    if not cleaned:
+        return None
+    aliases = {
+        "darwin": "macos",
+        "mac": "macos",
+        "macos": "macos",
+        "osx": "macos",
+        "win": "windows",
+        "win32": "windows",
+        "windows": "windows",
+    }
+    return aliases.get(cleaned, cleaned)
+
+
+def runtime_platform_name() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def platform_display_name(platform_name: str | None) -> str:
+    normalized = normalize_platform_name(platform_name)
+    if normalized == "windows":
+        return "Windows"
+    if normalized == "macos":
+        return "macOS"
+    if normalized == "linux":
+        return "Linux"
+    return normalized or "当前平台"
+
+
 def hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def infer_release_platform(asset: ReleaseAsset) -> str | None:
+    path_text = urllib.parse.urlsplit(asset.url).path.lower()
+    name_text = asset.name.lower()
+    windows_suffixes = (".exe", ".msi", ".msix", ".msixbundle", ".appx", ".appxbundle")
+    mac_suffixes = (".dmg", ".pkg", ".app.zip")
+    if path_text.endswith(windows_suffixes) or name_text.endswith(windows_suffixes):
+        return "windows"
+    if path_text.endswith(mac_suffixes) or name_text.endswith(mac_suffixes):
+        return "macos"
+    return None
 
 
 def release_asset_from_manifest(data: dict[str, Any]) -> ReleaseAsset:
@@ -145,11 +196,13 @@ class UpdateService:
         timeout_seconds: int = 20,
         urlopen: Callable[..., Any] | None = None,
         proxies: dict[str, str] | None = None,
+        platform_name: str | None = None,
     ) -> None:
         self.repository = repository
         self.timeout_seconds = timeout_seconds
         self.proxy_map = detect_system_proxies(proxies)
         self.proxy_mode = describe_proxy_mode(self.proxy_map)
+        self.platform_name = normalize_platform_name(platform_name) or runtime_platform_name()
         if urlopen is not None:
             self.urlopen = urlopen
         else:
@@ -214,13 +267,23 @@ class UpdateService:
             raise UpdateError("更新清单解析失败。") from exc
 
         manifest_version = normalize_version(str(manifest_data["version"]))
+        full_asset = release_asset_from_manifest(dict(manifest_data["full"]))
+        manifest_platform = normalize_platform_name(manifest_data.get("platform"))
+        if manifest_platform is None:
+            manifest_platform = infer_release_platform(full_asset)
         return ReleaseManifest(
             version=manifest_version,
             tag_name=str(manifest_data["tag_name"]),
             repository=str(manifest_data.get("repository") or self.repository),
-            full=release_asset_from_manifest(dict(manifest_data["full"])),
+            platform=manifest_platform,
+            full=full_asset,
             patches=[patch_asset_from_manifest(dict(item)) for item in manifest_data.get("patches", [])],
         )
+
+    def is_manifest_compatible(self, manifest: ReleaseManifest) -> bool:
+        if manifest.platform is None:
+            return True
+        return normalize_platform_name(manifest.platform) == self.platform_name
 
     def select_update(self, manifest: ReleaseManifest, current_version: str) -> SelectedUpdate | None:
         normalized_current = normalize_version(current_version)
@@ -286,6 +349,20 @@ class UpdateService:
         progress_callback: ProgressCallback | None = None,
     ) -> UpdatePreparation:
         manifest = self.fetch_latest_manifest()
+        if not self.is_manifest_compatible(manifest):
+            current_platform = platform_display_name(self.platform_name)
+            manifest_platform = platform_display_name(manifest.platform)
+            return UpdatePreparation(
+                status="up_to_date",
+                current_version=normalize_version(current_version),
+                target_version=manifest.version,
+                asset_kind=None,
+                asset=None,
+                fallback_asset=None,
+                local_path=None,
+                from_cache=False,
+                message=f"最新发布仅包含 {manifest_platform} 更新包，当前 {current_platform} 已跳过。",
+            )
         selection = self.select_update(manifest, current_version)
         if selection is None:
             return UpdatePreparation(

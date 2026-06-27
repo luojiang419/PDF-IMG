@@ -58,8 +58,9 @@ python scripts\publish_github_release.py
 
 ## 自动更新说明
 
-- 最新版本通过公开 GitHub Release 提供，客户端直接匿名访问，无需登录 gh 或配置凭据。
-- 每个正式版本会上传 3 类资产：
+- 最新版本通过公开 GitHub Release 提供，客户端按平台匹配更新包，Windows 和 macOS 互不干扰。
+- 如果当前发布没有对应平台的更新包，客户端会自动跳过，不会误下载其他平台的安装程序。
+- 当前 Windows 发布会上传 3 类资产：
   - `PDF-IMG-Extractor-vX.Y.Z-Setup.exe`
   - `PDF-IMG-Extractor-vA.B.C-to-vX.Y.Z-patch.zip`
   - `PDF-IMG-Extractor-vX.Y.Z-manifest.json`

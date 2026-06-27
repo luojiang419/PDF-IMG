@@ -55,6 +55,9 @@ def launch_update_process(
     *,
     parent: MainWindow | None = None,
 ) -> bool:
+    if sys.platform != "win32":
+        raise RuntimeError("当前平台暂不支持自动安装更新，请到发布页手动下载安装包。")
+
     if not getattr(sys, "frozen", False):
         if parent is not None:
             QMessageBox.information(

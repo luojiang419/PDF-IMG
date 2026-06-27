@@ -88,6 +88,7 @@ def write_release_manifest(
         "version": version,
         "tag_name": tag_name,
         "repository": repository,
+        "platform": "windows",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "full": asset_metadata(installer_path, repository=repository, tag_name=tag_name),
         "patches": [],

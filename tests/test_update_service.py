@@ -39,6 +39,53 @@ class FakeResponse:
         return False
 
 
+def build_release_fixture() -> tuple[dict[str, object], dict[str, object], bytes, bytes]:
+    patch_bytes = b"patch-binary"
+    full_bytes = b"full-installer"
+    patch_sha = hashlib.sha256(patch_bytes).hexdigest()
+    full_sha = hashlib.sha256(full_bytes).hexdigest()
+
+    manifest = {
+        "version": "0.1.20",
+        "tag_name": "v0.1.20",
+        "repository": "demo/repo",
+        "full": {
+            "name": "PDF-IMG-Extractor-v0.1.20-Setup.exe",
+            "url": "https://example.com/PDF-IMG-Extractor-v0.1.20-Setup.exe",
+            "size": len(full_bytes),
+            "sha256": full_sha,
+        },
+        "patches": [
+            {
+                "from_version": "0.1.19",
+                "to_version": "0.1.20",
+                "name": "PDF-IMG-Extractor-v0.1.19-to-v0.1.20-patch.zip",
+                "url": "https://example.com/PDF-IMG-Extractor-v0.1.19-to-v0.1.20-patch.zip",
+                "size": len(patch_bytes),
+                "sha256": patch_sha,
+            }
+        ],
+    }
+    release_json = {
+        "tag_name": "v0.1.20",
+        "assets": [
+            {
+                "name": manifest_asset_name("0.1.20"),
+                "url": "https://api.github.com/repos/demo/repo/releases/assets/manifest",
+                "browser_download_url": "https://example.com/manifest.json",
+            }
+        ],
+    }
+    return release_json, manifest, patch_bytes, full_bytes
+
+
+def build_release_suffixes() -> tuple[str, str]:
+    return (
+        "PDF-IMG-Extractor-v0.1.19-to-v0.1.20-patch.zip",
+        "PDF-IMG-Extractor-v0.1.20-Setup.exe",
+    )
+
+
 class UpdateServiceTests(unittest.TestCase):
     def test_detect_system_proxies_normalizes_host_port_values(self) -> None:
         proxies = detect_system_proxies({"https": "127.0.0.1:7890", "http": "http://127.0.0.1:7891"})
@@ -54,69 +101,24 @@ class UpdateServiceTests(unittest.TestCase):
             "系统代理（https=http://127.0.0.1:7890，http=http://127.0.0.1:7891）",
         )
 
-    def test_prepare_update_prefers_patch_and_reuses_cached_asset(self) -> None:
+    def test_prepare_update_prefers_patch_and_reuses_cached_asset_on_windows(self) -> None:
         previous_override = os.environ.get(TEST_OVERRIDE_ENV)
         with tempfile.TemporaryDirectory() as temp_dir:
             os.environ[TEST_OVERRIDE_ENV] = temp_dir
-            patch_bytes = b"patch-binary"
-            full_bytes = b"full-installer"
-            patch_sha = hashlib.sha256(patch_bytes).hexdigest()
-            full_sha = hashlib.sha256(full_bytes).hexdigest()
-            auth_headers: list[str | None] = []
-
-            manifest = {
-                "version": "0.1.20",
-                "tag_name": "v0.1.20",
-                "repository": "demo/repo",
-                "full": {
-                    "name": "setup.exe",
-                    "url": "https://example.com/setup.exe",
-                    "size": len(full_bytes),
-                    "sha256": full_sha,
-                },
-                "patches": [
-                    {
-                        "from_version": "0.1.19",
-                        "to_version": "0.1.20",
-                        "name": "patch.zip",
-                        "url": "https://example.com/patch.zip",
-                        "size": len(patch_bytes),
-                        "sha256": patch_sha,
-                    }
-                ],
-            }
-            release_json = {
-                "tag_name": "v0.1.20",
-                "assets": [
-                    {
-                        "name": manifest_asset_name("0.1.20"),
-                        "url": "https://api.github.com/repos/demo/repo/releases/assets/manifest",
-                        "browser_download_url": "https://example.com/manifest.json",
-                    },
-                    {
-                        "name": "patch.zip",
-                        "url": "https://api.github.com/repos/demo/repo/releases/assets/patch",
-                        "browser_download_url": "https://example.com/patch.zip",
-                    },
-                    {
-                        "name": "setup.exe",
-                        "url": "https://api.github.com/repos/demo/repo/releases/assets/setup",
-                        "browser_download_url": "https://example.com/setup.exe",
-                    }
-                ],
-            }
+            release_json, manifest, patch_bytes, full_bytes = build_release_fixture()
+            patch_name, full_name = build_release_suffixes()
+            requested_urls: list[str] = []
 
             def fake_urlopen(request, timeout=0):
-                headers = {key.title(): value for key, value in request.header_items()}
-                auth_headers.append(headers.get("Authorization"))
+                requested_urls.append(request.full_url)
                 url = request.full_url
                 if url.endswith("/releases/latest"):
                     return FakeResponse(json.dumps(release_json).encode("utf-8"))
                 if url.endswith("/manifest.json"):
                     return FakeResponse(json.dumps(manifest).encode("utf-8"))
-                if url.endswith("/patch.zip"):
+                if url.endswith(f"/{patch_name}"):
                     return FakeResponse(patch_bytes, headers={"Content-Length": str(len(patch_bytes))})
-                if url.endswith("/setup.exe"):
+                if url.endswith(f"/{full_name}"):
                     return FakeResponse(full_bytes, headers={"Content-Length": str(len(full_bytes))})
                 raise AssertionError(f"unexpected url: {url}")
 
@@ -124,6 +126,7 @@ class UpdateServiceTests(unittest.TestCase):
                 repository="demo/repo",
                 urlopen=fake_urlopen,
                 proxies={"https": "127.0.0.1:7890"},
+                platform_name="windows",
             )
             self.assertEqual(service.proxy_mode, "系统代理（https=http://127.0.0.1:7890）")
             first = service.prepare_update(current_version="0.1.19")
@@ -143,8 +146,47 @@ class UpdateServiceTests(unittest.TestCase):
             latest = service.prepare_update(current_version="0.1.20")
             self.assertEqual(latest.status, "up_to_date")
             self.assertIsNone(latest.asset)
-            self.assertTrue(auth_headers)
-            self.assertTrue(all(header is None for header in auth_headers))
+            self.assertTrue(any(url.endswith(f"/{patch_name}") for url in requested_urls))
+            self.assertTrue(any(url.endswith(f"/{full_name}") for url in requested_urls))
+
+        if previous_override is None:
+            os.environ.pop(TEST_OVERRIDE_ENV, None)
+        else:
+            os.environ[TEST_OVERRIDE_ENV] = previous_override
+
+    def test_prepare_update_skips_windows_release_on_macos(self) -> None:
+        previous_override = os.environ.get(TEST_OVERRIDE_ENV)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.environ[TEST_OVERRIDE_ENV] = temp_dir
+            release_json, manifest, patch_bytes, full_bytes = build_release_fixture()
+            patch_name, full_name = build_release_suffixes()
+            requested_urls: list[str] = []
+
+            def fake_urlopen(request, timeout=0):
+                requested_urls.append(request.full_url)
+                url = request.full_url
+                if url.endswith("/releases/latest"):
+                    return FakeResponse(json.dumps(release_json).encode("utf-8"))
+                if url.endswith("/manifest.json"):
+                    return FakeResponse(json.dumps(manifest).encode("utf-8"))
+                if url.endswith(f"/{patch_name}") or url.endswith(f"/{full_name}"):
+                    raise AssertionError(f"平台不匹配时不应下载更新包：{url}")
+                raise AssertionError(f"unexpected url: {url}")
+
+            service = UpdateService(
+                repository="demo/repo",
+                urlopen=fake_urlopen,
+                proxies={},
+                platform_name="macos",
+            )
+            result = service.prepare_update(current_version="0.1.19")
+            self.assertEqual(result.status, "up_to_date")
+            self.assertIsNone(result.asset)
+            self.assertEqual(result.target_version, "0.1.20")
+            self.assertIn("Windows", result.message)
+            self.assertTrue(any(url.endswith("/manifest.json") for url in requested_urls))
+            self.assertFalse(any(url.endswith(f"/{patch_name}") for url in requested_urls))
+            self.assertFalse(any(url.endswith(f"/{full_name}") for url in requested_urls))
 
         if previous_override is None:
             os.environ.pop(TEST_OVERRIDE_ENV, None)
