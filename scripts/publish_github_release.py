@@ -22,9 +22,11 @@ from pdf_image_tool.core.app_info import (
     UPDATE_REPOSITORY,
     current_update_platform,
     installer_asset_name,
+    legacy_manifest_asset_name,
     manifest_asset_name,
     patch_asset_name,
     release_tag_name,
+    UPDATE_PLATFORM_WINDOWS,
 )
 from pdf_image_tool.core.versioning import bump_patch_version
 
@@ -75,7 +77,7 @@ def asset_metadata(path: Path, *, repository: str, tag_name: str) -> dict[str, o
     }
 
 
-def write_release_manifest(
+def write_release_manifests(
     *,
     release_dir: Path,
     version: str,
@@ -84,7 +86,7 @@ def write_release_manifest(
     patch_path: Path | None,
     previous_version: str | None,
     platform_name: str,
-) -> Path:
+) -> list[Path]:
     tag_name = release_tag_name(version)
     manifest = {
         "version": version,
@@ -105,8 +107,16 @@ def write_release_manifest(
         )
 
     manifest_path = release_dir / manifest_asset_name(version, platform_name)
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    return manifest_path
+    manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2)
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    manifest_paths = [manifest_path]
+    if platform_name == UPDATE_PLATFORM_WINDOWS:
+        legacy_manifest_path = release_dir / legacy_manifest_asset_name(version)
+        legacy_manifest_path.write_text(manifest_text, encoding="utf-8")
+        manifest_paths.append(legacy_manifest_path)
+
+    return manifest_paths
 
 
 def ensure_github_release(repository: str, tag_name: str, asset_paths: list[Path]) -> None:
@@ -147,7 +157,7 @@ def main() -> int:
     previous_release_dir = ROOT / "dist" / release_tag_name(current_version)
     installer_path = ROOT / "dist" / release_tag_name(next_version) / installer_asset_name(next_version)
     patch_path: Path | None = None
-    manifest_path: Path | None = None
+    manifest_paths: list[Path] = []
     success = False
 
     try:
@@ -189,7 +199,7 @@ def main() -> int:
             if patch_path.name != expected_patch_name:
                 raise RuntimeError(f"补丁包命名不匹配：{patch_path.name}")
 
-        manifest_path = write_release_manifest(
+        manifest_paths = write_release_manifests(
             release_dir=release_dir,
             version=next_version,
             repository=args.repository,
@@ -202,7 +212,7 @@ def main() -> int:
         asset_paths = [installer_path]
         if patch_path is not None:
             asset_paths.append(patch_path)
-        asset_paths.append(manifest_path)
+        asset_paths.extend(manifest_paths)
         ensure_github_release(args.repository, release_tag_name(next_version), asset_paths)
         success = True
         print(json.dumps(
