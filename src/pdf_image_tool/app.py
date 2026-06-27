@@ -323,6 +323,7 @@ def main() -> int:
 
     window = MainWindow(
         window_title=f"{APP_NAME} v{APP_VERSION}",
+        current_version=APP_VERSION,
         initial_theme_name=DEFAULT_THEME_NAME,
     )
     if not app_icon.isNull():

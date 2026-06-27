@@ -17,6 +17,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from pdf_image_tool.core.app_info import APP_VERSION
 from pdf_image_tool.ui.main_window import MainWindow
 
 
@@ -25,7 +26,7 @@ APP = QApplication.instance() or QApplication([])
 
 class UpdateUiTests(unittest.TestCase):
     def test_settings_tab_exposes_update_controls_and_button_signal(self) -> None:
-        window = MainWindow("更新 UI 测试")
+        window = MainWindow("更新 UI 测试", current_version=APP_VERSION)
         requests: list[str] = []
         window.manual_update_check_requested.connect(lambda: requests.append("clicked"))
         window.show()
@@ -35,6 +36,7 @@ class UpdateUiTests(unittest.TestCase):
             window.tabs.setCurrentIndex(3)
             APP.processEvents()
             self.assertEqual(window.check_update_button.text(), "检查更新")
+            self.assertEqual(window.current_version_label.text(), f"当前版本：v{APP_VERSION}")
             self.assertTrue(window.update_status_label.wordWrap())
             QTest.mouseClick(window.check_update_button, Qt.LeftButton)
             APP.processEvents()
