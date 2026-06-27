@@ -250,6 +250,74 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertEqual(result.target_version, "0.1.20")
         self.assertEqual(result.asset_kind, "full")
 
+    def test_prepare_update_prefers_platform_manifest_over_legacy_name(self) -> None:
+        full_bytes = b"windows-full-installer"
+        windows_manifest = {
+            "version": "0.1.23",
+            "tag_name": "v0.1.23",
+            "repository": "demo/repo",
+            "platform": "windows",
+            "full": {
+                "name": "setup.exe",
+                "url": "https://example.com/setup.exe",
+                "size": len(full_bytes),
+                "sha256": hashlib.sha256(full_bytes).hexdigest(),
+            },
+            "patches": [],
+        }
+        legacy_mac_manifest = {
+            "version": "0.1.23",
+            "tag_name": "v0.1.23",
+            "repository": "demo/repo",
+            "platform": "macos",
+            "full": {
+                "name": "app.dmg",
+                "url": "https://example.com/app.dmg",
+                "size": 10,
+                "sha256": "0" * 64,
+            },
+            "patches": [],
+        }
+        release_list = [
+            {
+                "tag_name": "v0.1.23",
+                "assets": [
+                    {
+                        "name": legacy_manifest_asset_name("0.1.23"),
+                        "browser_download_url": "https://example.com/legacy-manifest.json",
+                    },
+                    {
+                        "name": manifest_asset_name("0.1.23", "windows"),
+                        "browser_download_url": "https://example.com/windows-manifest.json",
+                    },
+                ],
+            }
+        ]
+        requested_urls: list[str] = []
+
+        def fake_urlopen(request, timeout=0):
+            requested_urls.append(request.full_url)
+            url = request.full_url
+            if "/releases?per_page=" in url:
+                return FakeResponse(json.dumps(release_list).encode("utf-8"))
+            if url.endswith("/windows-manifest.json"):
+                return FakeResponse(json.dumps(windows_manifest).encode("utf-8"))
+            if url.endswith("/legacy-manifest.json"):
+                return FakeResponse(json.dumps(legacy_mac_manifest).encode("utf-8"))
+            if url.endswith("/setup.exe"):
+                return FakeResponse(full_bytes, headers={"Content-Length": str(len(full_bytes))})
+            if url.endswith("/app.dmg"):
+                raise AssertionError("Windows 不应下载 macOS DMG")
+            raise AssertionError(f"unexpected url: {url}")
+
+        service = UpdateService(repository="demo/repo", urlopen=fake_urlopen, platform_name="windows")
+        result = service.prepare_update(current_version="0.1.22")
+        self.assertEqual(result.status, "update_ready")
+        self.assertEqual(result.target_version, "0.1.23")
+        self.assertEqual(result.asset_kind, "full")
+        self.assertTrue(any(url.endswith("/windows-manifest.json") for url in requested_urls))
+        self.assertFalse(any(url.endswith("/legacy-manifest.json") for url in requested_urls))
+
     def test_prepare_update_ignores_legacy_windows_manifest_on_macos(self) -> None:
         manifest = {
             "version": "0.1.20",

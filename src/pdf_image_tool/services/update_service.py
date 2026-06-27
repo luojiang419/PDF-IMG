@@ -215,10 +215,14 @@ class UpdateService:
 
     def find_manifest_url(self, release_data: dict[str, Any], tag_version: str) -> str | None:
         asset_names = manifest_asset_candidates(tag_version, self.platform_name)
-        for asset in release_data.get("assets", []):
-            asset_name = str(asset.get("name"))
-            if asset_name in asset_names:
-                return str(asset.get("browser_download_url") or "")
+        assets_by_name = {
+            str(asset.get("name")): str(asset.get("browser_download_url") or "")
+            for asset in release_data.get("assets", [])
+        }
+        for asset_name in asset_names:
+            manifest_url = assets_by_name.get(asset_name)
+            if manifest_url:
+                return manifest_url
         return None
 
     def parse_manifest(self, manifest_data: dict[str, Any], *, fallback_platform: str) -> ReleaseManifest:
