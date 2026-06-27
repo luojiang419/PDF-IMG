@@ -3,7 +3,7 @@ import sys
 
 APP_NAME = "PDF 图片提取工具"
 BUILD_NAME = "PDF-IMG-Extractor"
-APP_VERSION = "0.1.22"
+APP_VERSION = "0.1.23"
 APP_ICON_PARTS = ("logo", "logo 拷贝.png")
 
 UPDATE_REPOSITORY_OWNER = "luojiang419"
@@ -48,6 +48,10 @@ def update_platform_label(platform_name: str | None = None) -> str:
 
 def installer_asset_name(version: str) -> str:
     return f"{BUILD_NAME}-{release_tag_name(version)}-Setup.exe"
+
+
+def macos_dmg_asset_name(version: str, arch: str) -> str:
+    return f"{BUILD_NAME}-{release_tag_name(version)}-mac-{arch}.dmg"
 
 
 def legacy_manifest_asset_name(version: str) -> str:

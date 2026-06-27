@@ -56,6 +56,12 @@ python scripts\build_delta_update.py --from-release dist\v0.1.18 --to-release di
 python scripts\publish_github_release.py
 ```
 
+macOS 构建 DMG 并上传 GitHub Release：
+
+```bash
+python scripts/publish_macos_release.py
+```
+
 ## 自动更新说明
 
 - 最新版本通过公开 GitHub Release 提供，客户端不依赖自建服务器。

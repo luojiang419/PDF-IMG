@@ -55,6 +55,22 @@ def launch_update_process(
     *,
     parent: MainWindow | None = None,
 ) -> bool:
+    asset_path = Path(pending_update.asset_path)
+    if not asset_path.exists():
+        raise RuntimeError(f"未找到更新包：{asset_path}")
+
+    if sys.platform == "darwin":
+        if asset_path.suffix.lower() != ".dmg":
+            raise RuntimeError("macOS 更新包格式不正确，请到发布页手动下载安装包。")
+        subprocess.Popen(["open", str(asset_path)])
+        if parent is not None:
+            QMessageBox.information(
+                parent,
+                "macOS 更新包",
+                "已打开下载的 DMG 安装包，请按窗口提示手动完成安装。",
+            )
+        return False
+
     if sys.platform != "win32":
         raise RuntimeError("当前平台暂不支持自动安装更新，请到发布页手动下载安装包。")
 
@@ -70,10 +86,6 @@ def launch_update_process(
     update_script = resource_path("scripts", "apply_update.ps1")
     if not update_script.exists():
         raise RuntimeError(f"未找到更新接管脚本：{update_script}")
-
-    asset_path = Path(pending_update.asset_path)
-    if not asset_path.exists():
-        raise RuntimeError(f"未找到更新包：{asset_path}")
 
     command = [
         "powershell.exe",
@@ -230,6 +242,23 @@ class UpdateCoordinator(QObject):
         message_box.setWindowTitle("发现新版本")
         message_box.setIcon(QMessageBox.Information)
         message_box.setText(f"新版本 v{result.target_version} 的{asset_label}已准备完成。")
+
+        if sys.platform != "win32":
+            message_box.setInformativeText("macOS 版更新包已下载完成，请打开安装包后手动完成安装。")
+            open_button = message_box.addButton("打开安装包", QMessageBox.AcceptRole)
+            cancel_button = message_box.addButton("稍后", QMessageBox.RejectRole)
+            message_box.setDefaultButton(open_button)
+            message_box.exec()
+
+            clicked_button = message_box.clickedButton()
+            if clicked_button is open_button:
+                self.apply_update_now(result)
+                return
+            if clicked_button is cancel_button:
+                self.window.set_update_status("更新包已缓存，可稍后再次检查更新。")
+                self.window.append_log("用户暂未打开本次 macOS 更新包，已保留下载缓存。")
+            return
+
         message_box.setInformativeText("立即更新会关闭当前程序并在完成后自动重启；也可以安排到下次启动时再更新。")
         immediate_button = message_box.addButton("立即更新", QMessageBox.AcceptRole)
         next_launch_button = message_box.addButton("下次启动更新", QMessageBox.ActionRole)

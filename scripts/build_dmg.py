@@ -14,7 +14,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pdf_image_tool.core.app_info import BUILD_NAME
+from pdf_image_tool.core.app_info import BUILD_NAME, macos_dmg_asset_name
 from pdf_image_tool.core.versioning import VERSION_PATTERN
 
 
@@ -37,7 +37,7 @@ def build_dmg(release_root: Path) -> Path:
         raise RuntimeError(f"未找到 macOS app：{app_path}")
 
     arch = platform.machine() or "mac"
-    dmg_name = f"{BUILD_NAME}-{release_root.name}-mac-{arch}.dmg"
+    dmg_name = macos_dmg_asset_name(release_root.name[1:], arch)
     dmg_path = release_root / dmg_name
     staging_root = ROOT / "build" / "dmg-staging" / release_root.name
 
