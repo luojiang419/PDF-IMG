@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFrame
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,6 +58,41 @@ class ThemeToggleUiTests(unittest.TestCase):
             self.assertEqual(window.current_theme_name, "dark")
             self.assertEqual(window.theme_toggle_button.toolTip(), "切换到浅色主题")
             self.assertEqual(APP.styleSheet(), dark_stylesheet)
+        finally:
+            window.close()
+            APP.setStyleSheet(original_stylesheet)
+
+    def test_theme_and_tab_switches_keep_page_containers_render_safe(self) -> None:
+        original_stylesheet = APP.styleSheet()
+        window = MainWindow("主题页面切换空白回归测试", initial_theme_name="dark")
+
+        def apply_theme(theme_name: str) -> None:
+            APP.setStyleSheet(load_stylesheet(theme_name))
+            window.set_theme(theme_name)
+
+        window.theme_change_requested.connect(apply_theme)
+        apply_theme("dark")
+        window.show()
+        APP.processEvents()
+
+        try:
+            for theme_name in ("light", "dark"):
+                apply_theme(theme_name)
+                for tab_index in range(window.tabs.count()):
+                    window.tabs.setCurrentIndex(tab_index)
+                    APP.processEvents()
+                    self.assertIsNone(window.centralWidget().graphicsEffect())
+                    self.assertIsNone(window.tabs.widget(tab_index).graphicsEffect())
+
+            glass_container_names = {"HeaderCard", "Card", "PreviewSurfaceContainer"}
+            glass_containers = [
+                frame
+                for frame in window.findChildren(QFrame)
+                if frame.objectName() in glass_container_names
+            ]
+            self.assertGreater(len(glass_containers), 0)
+            for container in glass_containers:
+                self.assertIsNone(container.graphicsEffect())
         finally:
             window.close()
             APP.setStyleSheet(original_stylesheet)

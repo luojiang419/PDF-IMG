@@ -1,6 +1,6 @@
 QWidget {
-    background-color: #081217;
-    color: #ebf5f7;
+    background-color: #0a0e11;
+    color: #eef7f5;
     font-family: "Microsoft YaHei UI";
     font-size: 14px;
 }
@@ -8,9 +8,9 @@ QWidget {
 QMainWindow {
     background: qlineargradient(
         x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 rgba(6, 17, 23, 255),
-        stop: 0.55 rgba(9, 25, 33, 255),
-        stop: 1 rgba(4, 10, 14, 255)
+        stop: 0 rgba(8, 12, 15, 255),
+        stop: 0.48 rgba(12, 22, 24, 255),
+        stop: 1 rgba(7, 10, 12, 255)
     );
 }
 
@@ -21,13 +21,29 @@ QLabel {
 QFrame#HeaderCard,
 QFrame#Card,
 QFrame#StatCard {
-    background-color: rgba(15, 31, 40, 205);
-    border: 1px solid rgba(160, 243, 255, 34);
-    border-radius: 22px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 rgba(26, 38, 42, 218),
+        stop: 0.52 rgba(13, 23, 26, 198),
+        stop: 1 rgba(20, 29, 31, 214)
+    );
+    border: 1px solid rgba(203, 255, 246, 42);
+    border-radius: 8px;
 }
 
 QFrame#HeaderCard {
-    background-color: rgba(16, 38, 48, 222);
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(28, 47, 50, 230),
+        stop: 0.55 rgba(15, 28, 31, 216),
+        stop: 1 rgba(24, 32, 35, 226)
+    );
+    border: 1px solid rgba(160, 255, 236, 58);
+}
+
+QFrame#PreviewSurfaceContainer {
+    background: transparent;
+    border: none;
 }
 
 QTabWidget#MainTabs::pane {
@@ -36,10 +52,10 @@ QTabWidget#MainTabs::pane {
 }
 
 QTabBar::tab {
-    background-color: rgba(18, 48, 61, 190);
-    border: 1px solid rgba(160, 243, 255, 24);
-    border-radius: 14px;
-    color: rgba(236, 251, 255, 190);
+    background: rgba(17, 27, 30, 214);
+    border: 1px solid rgba(203, 255, 246, 26);
+    border-radius: 8px;
+    color: rgba(232, 247, 245, 196);
     font-weight: 600;
     min-width: 104px;
     padding: 9px 16px;
@@ -47,13 +63,20 @@ QTabBar::tab {
 }
 
 QTabBar::tab:selected {
-    background-color: rgba(35, 119, 135, 232);
-    border: 1px solid rgba(171, 247, 255, 58);
-    color: #f7feff;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(18, 141, 145, 238),
+        stop: 0.58 rgba(38, 166, 133, 238),
+        stop: 1 rgba(110, 164, 94, 232)
+    );
+    border: 1px solid rgba(208, 255, 238, 86);
+    color: #fbfffd;
 }
 
 QTabBar::tab:hover {
-    background-color: rgba(24, 65, 81, 228);
+    background: rgba(28, 49, 52, 235);
+    border: 1px solid rgba(203, 255, 246, 46);
+    color: #fbfffd;
 }
 
 QFrame#StatCard {
@@ -63,16 +86,16 @@ QFrame#StatCard {
 QLabel#Title {
     font-size: 28px;
     font-weight: 700;
-    color: #f5fdff;
+    color: #fbfffd;
 }
 
 QLabel#Subtitle {
-    color: rgba(221, 243, 248, 190);
+    color: rgba(223, 241, 238, 190);
     font-size: 13px;
 }
 
 QLabel#CardTitle {
-    color: #9edce7;
+    color: #8ee8d1;
     font-size: 16px;
     font-weight: 600;
 }
@@ -80,29 +103,34 @@ QLabel#CardTitle {
 QLabel#StatValue {
     font-size: 30px;
     font-weight: 700;
-    color: #f5fdff;
+    color: #fbfffd;
 }
 
 QLabel#StatLabel {
-    color: rgba(208, 232, 237, 180);
+    color: rgba(210, 230, 226, 178);
     font-size: 13px;
 }
 
 QLabel#Hint {
-    color: rgba(198, 222, 229, 170);
+    color: rgba(198, 219, 216, 172);
     font-size: 12px;
 }
 
 QLabel#PreviewSurface {
-    background-color: rgba(7, 20, 27, 210);
-    border: 1px solid rgba(160, 243, 255, 26);
-    border-radius: 18px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 rgba(10, 17, 20, 238),
+        stop: 0.5 rgba(12, 24, 27, 226),
+        stop: 1 rgba(8, 13, 16, 236)
+    );
+    border: 1px solid rgba(203, 255, 246, 36);
+    border-radius: 8px;
     padding: 12px;
-    color: rgba(214, 232, 236, 165);
+    color: rgba(218, 234, 231, 168);
 }
 
 QLabel#PreviewMeta {
-    color: rgba(216, 240, 245, 190);
+    color: rgba(218, 240, 235, 190);
     font-size: 12px;
 }
 
@@ -111,130 +139,173 @@ QWidget#PreviewOverlayActions {
 }
 
 QToolButton#PreviewOverlayButton {
-    background-color: rgba(18, 48, 61, 226);
-    border: 1px solid rgba(160, 243, 255, 46);
-    border-radius: 15px;
+    background: rgba(17, 31, 34, 232);
+    border: 1px solid rgba(204, 255, 246, 52);
+    border-radius: 8px;
     min-width: 30px;
     min-height: 30px;
 }
 
 QToolButton#PreviewOverlayButton:hover {
-    background-color: rgba(35, 119, 135, 238);
+    background: rgba(28, 145, 147, 240);
+    border: 1px solid rgba(218, 255, 246, 86);
 }
 
 QToolButton#PreviewOverlayButton:pressed {
-    background-color: rgba(16, 41, 53, 245);
+    background: rgba(10, 85, 91, 248);
 }
 
 QToolButton#PreviewOverlayButton:disabled {
-    background-color: rgba(30, 42, 47, 150);
-    border: 1px solid rgba(160, 243, 255, 18);
+    background: rgba(31, 39, 41, 154);
+    border: 1px solid rgba(203, 255, 246, 18);
 }
 
 QDialog#FullscreenPreviewDialog {
-    background-color: #050c10;
+    background-color: #06090b;
 }
 
 QLabel#FullscreenTitle {
-    color: #f5fdff;
+    color: #fbfffd;
     font-size: 16px;
     font-weight: 600;
 }
 
 QLabel#FullscreenPreviewSurface {
-    background-color: rgba(7, 20, 27, 240);
-    border: 1px solid rgba(160, 243, 255, 32);
-    border-radius: 18px;
+    background: rgba(8, 14, 17, 244);
+    border: 1px solid rgba(203, 255, 246, 38);
+    border-radius: 8px;
     padding: 12px;
-    color: rgba(214, 232, 236, 165);
+    color: rgba(218, 234, 231, 168);
 }
 
 QListWidget,
 QTableWidget,
 QPlainTextEdit,
 QLineEdit {
-    background-color: rgba(7, 20, 27, 210);
-    border: 1px solid rgba(160, 243, 255, 26);
-    border-radius: 16px;
+    background: rgba(8, 15, 18, 224);
+    border: 1px solid rgba(203, 255, 246, 30);
+    border-radius: 8px;
     padding: 10px 12px;
-    selection-background-color: rgba(59, 193, 212, 80);
+    selection-background-color: rgba(43, 183, 163, 96);
     selection-color: #ffffff;
+}
+
+QListWidget:hover,
+QTableWidget:hover,
+QPlainTextEdit:hover,
+QLineEdit:hover {
+    border: 1px solid rgba(203, 255, 246, 50);
+}
+
+QLineEdit:focus,
+QPlainTextEdit:focus {
+    border: 1px solid rgba(142, 232, 209, 92);
 }
 
 QListWidget::item,
 QTableWidget::item {
     padding: 6px;
+    border-radius: 6px;
+}
+
+QListWidget::item:hover,
+QTableWidget::item:hover {
+    background: rgba(55, 92, 91, 116);
+}
+
+QListWidget::item:selected,
+QTableWidget::item:selected {
+    background: rgba(43, 183, 163, 118);
+    color: #ffffff;
 }
 
 QHeaderView::section {
-    background-color: rgba(20, 42, 52, 220);
-    color: #d7f7ff;
+    background: rgba(19, 33, 36, 236);
+    color: #defbf5;
     padding: 8px 10px;
     border: none;
-    border-bottom: 1px solid rgba(160, 243, 255, 26);
+    border-bottom: 1px solid rgba(203, 255, 246, 34);
 }
 
 QPushButton {
-    background-color: rgba(18, 48, 61, 226);
-    border: 1px solid rgba(160, 243, 255, 30);
-    border-radius: 16px;
+    background: rgba(18, 31, 34, 226);
+    border: 1px solid rgba(203, 255, 246, 34);
+    border-radius: 8px;
     padding: 10px 16px;
-    color: #ecfbff;
+    color: #ecfbf8;
     font-weight: 600;
 }
 
 QPushButton:hover {
-    background-color: rgba(24, 65, 81, 235);
+    background: rgba(27, 47, 50, 238);
+    border: 1px solid rgba(203, 255, 246, 58);
 }
 
 QPushButton:pressed {
-    background-color: rgba(16, 41, 53, 245);
+    background: rgba(12, 78, 83, 246);
+}
+
+QPushButton:focus {
+    border: 1px solid rgba(142, 232, 209, 92);
 }
 
 QPushButton:disabled {
-    background-color: rgba(30, 42, 47, 170);
-    color: rgba(214, 224, 227, 120);
+    background: rgba(31, 39, 41, 162);
+    border: 1px solid rgba(203, 255, 246, 18);
+    color: rgba(216, 226, 224, 112);
 }
 
 QPushButton#PrimaryButton {
-    background-color: rgba(29, 126, 140, 236);
-    border: 1px solid rgba(171, 247, 255, 68);
-    color: #f7feff;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(18, 141, 145, 240),
+        stop: 0.55 rgba(38, 166, 133, 244),
+        stop: 1 rgba(119, 162, 84, 236)
+    );
+    border: 1px solid rgba(221, 255, 240, 88);
+    color: #fbfffd;
 }
 
 QPushButton#PrimaryButton:hover {
-    background-color: rgba(38, 148, 163, 245);
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(28, 166, 170, 248),
+        stop: 0.55 rgba(49, 190, 153, 250),
+        stop: 1 rgba(138, 180, 93, 244)
+    );
 }
 
 QToolButton#ThemeToggleButton {
-    background-color: rgba(18, 48, 61, 196);
-    border: 1px solid rgba(160, 243, 255, 34);
-    border-radius: 21px;
+    background: rgba(16, 28, 31, 218);
+    border: 1px solid rgba(203, 255, 246, 44);
+    border-radius: 8px;
 }
 
 QToolButton#ThemeToggleButton:hover {
-    background-color: rgba(24, 65, 81, 228);
+    background: rgba(28, 49, 52, 235);
+    border: 1px solid rgba(203, 255, 246, 70);
 }
 
 QToolButton#ThemeToggleButton:pressed {
-    background-color: rgba(16, 41, 53, 238);
+    background: rgba(12, 78, 83, 246);
 }
 
 QProgressBar {
-    background-color: rgba(8, 22, 28, 210);
-    border: 1px solid rgba(160, 243, 255, 20);
-    border-radius: 12px;
+    background: rgba(8, 15, 18, 222);
+    border: 1px solid rgba(203, 255, 246, 26);
+    border-radius: 8px;
     min-height: 20px;
     text-align: center;
-    color: #f0fbff;
+    color: #f0fbf8;
 }
 
 QProgressBar::chunk {
-    border-radius: 10px;
+    border-radius: 7px;
     background: qlineargradient(
         x1: 0, y1: 0, x2: 1, y2: 0,
-        stop: 0 rgba(62, 197, 213, 220),
-        stop: 1 rgba(121, 240, 255, 245)
+        stop: 0 rgba(23, 190, 197, 230),
+        stop: 0.58 rgba(94, 241, 197, 246),
+        stop: 1 rgba(226, 192, 90, 238)
     );
 }
 
@@ -245,9 +316,13 @@ QScrollBar:vertical {
 }
 
 QScrollBar::handle:vertical {
-    background: rgba(113, 202, 214, 110);
+    background: rgba(121, 214, 198, 122);
     border-radius: 6px;
     min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: rgba(144, 236, 217, 164);
 }
 
 QScrollBar::add-line:vertical,
@@ -256,4 +331,12 @@ QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical {
     background: transparent;
     border: none;
+}
+
+QToolTip {
+    background: rgba(14, 24, 27, 242);
+    border: 1px solid rgba(203, 255, 246, 48);
+    border-radius: 6px;
+    color: #eef7f5;
+    padding: 6px 8px;
 }

@@ -279,7 +279,8 @@ def main() -> int:
 
     built_app_dir = pyinstaller_dist / built_output_name()
     release_root.mkdir(parents=True, exist_ok=False)
-    shutil.copytree(built_app_dir, release_root / built_app_dir.name)
+    # macOS .framework bundles rely on symlinks; dereferencing them greatly inflates the .app.
+    shutil.copytree(built_app_dir, release_root / built_app_dir.name, symlinks=True)
 
     print(release_root)
     return 0

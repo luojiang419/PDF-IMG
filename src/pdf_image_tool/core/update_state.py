@@ -30,7 +30,7 @@ class PendingUpdate:
 def app_storage_root() -> Path:
     override_root = os.environ.get(TEST_OVERRIDE_ENV)
     if override_root:
-        return Path(override_root).expanduser().resolve()
+        return Path(override_root).expanduser()
 
     local_appdata = os.environ.get("LOCALAPPDATA")
     if local_appdata:

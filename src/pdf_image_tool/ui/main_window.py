@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QDateTime, QSize, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import QDateTime, QEasingCurve, QPropertyAnimation, QSize, Qt, QThread, QUrl, Signal, Slot
 from PySide6.QtGui import (
     QColor,
     QDragEnterEvent,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QApplication,
     QDialog,
+    QGraphicsOpacityEffect,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -215,27 +216,57 @@ class PreviewSurfaceFrame(QFrame):
     def __init__(self) -> None:
         super().__init__()
         self.action_bar: QWidget | None = None
+        self.action_bar_opacity_effect: QGraphicsOpacityEffect | None = None
+        self.action_bar_animation: QPropertyAnimation | None = None
         self.has_preview = False
         self.setMouseTracking(True)
 
     def set_action_bar(self, action_bar: QWidget) -> None:
         self.action_bar = action_bar
-        self.action_bar.setVisible(False)
+        self.action_bar_opacity_effect = QGraphicsOpacityEffect(self.action_bar)
+        self.action_bar_opacity_effect.setOpacity(0.0)
+        self.action_bar.setGraphicsEffect(self.action_bar_opacity_effect)
+        self._set_action_bar_visible(False, animated=False)
 
     def set_actions_enabled(self, enabled: bool) -> None:
         self.has_preview = enabled
-        if self.action_bar is not None:
-            self.action_bar.setVisible(enabled and self.underMouse())
+        self._set_action_bar_visible(enabled and self.underMouse(), animated=False)
+
+    def _set_action_bar_visible(self, visible: bool, *, animated: bool) -> None:
+        if self.action_bar is None or self.action_bar_opacity_effect is None:
+            return
+
+        if self.action_bar_animation is not None:
+            self.action_bar_animation.stop()
+
+        if visible:
+            self.action_bar.setVisible(True)
+
+        start_opacity = self.action_bar_opacity_effect.opacity()
+        end_opacity = 1.0 if visible else 0.0
+        if not animated or abs(start_opacity - end_opacity) < 0.01:
+            self.action_bar_opacity_effect.setOpacity(end_opacity)
+            self.action_bar.setVisible(visible)
+            return
+
+        animation = QPropertyAnimation(self.action_bar_opacity_effect, b"opacity", self)
+        animation.setDuration(140)
+        animation.setStartValue(start_opacity)
+        animation.setEndValue(end_opacity)
+        animation.setEasingCurve(QEasingCurve.OutCubic)
+        if not visible:
+            animation.finished.connect(lambda: self.action_bar.setVisible(False))
+        self.action_bar_animation = animation
+        animation.start()
 
     def enterEvent(self, event) -> None:  # type: ignore[override]
         super().enterEvent(event)
-        if self.has_preview and self.action_bar is not None:
-            self.action_bar.setVisible(True)
+        if self.has_preview:
+            self._set_action_bar_visible(True, animated=True)
 
     def leaveEvent(self, event) -> None:  # type: ignore[override]
         super().leaveEvent(event)
-        if self.action_bar is not None:
-            self.action_bar.setVisible(False)
+        self._set_action_bar_visible(False, animated=True)
 
 
 class ClickablePreviewLabel(QLabel):
@@ -256,6 +287,7 @@ class FullscreenPreviewDialog(QDialog):
         self.preview_images = preview_images
         self.preview_index = max(0, min(start_index, len(preview_images) - 1))
         self.preview_source_pixmap: QPixmap | None = None
+        self._animations: list[QPropertyAnimation] = []
         self.setWindowTitle("导出预览")
         self.setObjectName("FullscreenPreviewDialog")
         self.setWindowModality(Qt.ApplicationModal)
@@ -353,6 +385,7 @@ class FullscreenPreviewDialog(QDialog):
         self.fullscreen_prev_button.setEnabled(index > 0)
         self.fullscreen_next_button.setEnabled(index < len(self.preview_images) - 1)
         self.render_current_pixmap()
+        self.animate_preview_transition()
         if emit_change:
             self.preview_index_changed.emit(index)
 
@@ -370,6 +403,22 @@ class FullscreenPreviewDialog(QDialog):
         )
         self.fullscreen_image_label.setText("")
         self.fullscreen_image_label.setPixmap(scaled_pixmap)
+
+    def animate_preview_transition(self) -> None:
+        effect = self.fullscreen_image_label.graphicsEffect()
+        if not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(self.fullscreen_image_label)
+            self.fullscreen_image_label.setGraphicsEffect(effect)
+
+        effect.setOpacity(0.82)
+        animation = QPropertyAnimation(effect, b"opacity", self)
+        animation.setDuration(150)
+        animation.setStartValue(0.82)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.OutCubic)
+        self._animations.append(animation)
+        animation.finished.connect(lambda: self._animations.remove(animation) if animation in self._animations else None)
+        animation.start()
 
     def show_previous_image(self) -> None:
         if self.preview_index <= 0:
@@ -421,6 +470,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 640)
         self.current_theme_name = initial_theme_name if initial_theme_name == "light" else "dark"
         self.current_version = current_version.strip()
+        self._animations: list[QPropertyAnimation] = []
 
         self.pdf_paths: list[Path] = []
         self.output_dir: Path | None = None
@@ -480,6 +530,7 @@ class MainWindow(QMainWindow):
     def _create_card(self, title: str, body_layout: QVBoxLayout | QHBoxLayout | QGridLayout) -> QFrame:
         card = QFrame()
         card.setObjectName("Card")
+        card.setAttribute(Qt.WA_StyledBackground, True)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -493,6 +544,7 @@ class MainWindow(QMainWindow):
     def _create_header(self) -> QFrame:
         header = QFrame()
         header.setObjectName("HeaderCard")
+        header.setAttribute(Qt.WA_StyledBackground, True)
         layout = QHBoxLayout(header)
         layout.setContentsMargins(22, 18, 22, 18)
         layout.setSpacing(14)
@@ -855,6 +907,25 @@ class MainWindow(QMainWindow):
     def toggle_theme(self) -> None:
         next_theme_name = "light" if self.current_theme_name == "dark" else "dark"
         self.theme_change_requested.emit(next_theme_name)
+
+    def _animate_leaf_opacity(self, widget: QWidget | None, *, start_opacity: float, duration: int) -> None:
+        if widget is None:
+            return
+
+        effect = widget.graphicsEffect()
+        if not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(widget)
+            widget.setGraphicsEffect(effect)
+
+        effect.setOpacity(start_opacity)
+        animation = QPropertyAnimation(effect, b"opacity", self)
+        animation.setDuration(duration)
+        animation.setStartValue(start_opacity)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.OutCubic)
+        self._animations.append(animation)
+        animation.finished.connect(lambda: self._animations.remove(animation) if animation in self._animations else None)
+        animation.start()
 
     def set_update_busy(self, busy: bool) -> None:
         self.is_update_busy = busy
@@ -1279,6 +1350,7 @@ class MainWindow(QMainWindow):
         self.preview_source_pixmap = pixmap
         self.preview_image_path = preview_image_path
         self.render_preview_pixmap()
+        self._animate_leaf_opacity(self.preview_image_label, start_opacity=0.82, duration=150)
         self.preview_position_label.setText(f"{index + 1} / {len(self.preview_images)}")
         self.preview_meta_label.setText(
             f"{preview_image_path.name} | {pixmap.width()} x {pixmap.height()} | {format_file_size(preview_image_path.stat().st_size)}"
